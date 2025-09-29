@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pl" data-theme="dark">
+<html lang="pl" data-theme="light">
 
 <head>
     <meta charset="utf-8" />
@@ -12,7 +12,13 @@
             --radius: 16px;
             --gap: 14px;
             --shadow: 0 6px 20px rgba(0, 0, 0, .25);
+        }
+
+        /* Theme variables */
+        html[data-theme="dark"] {
+            --bg: #0b0b0b;
             --card-bg: #121212;
+            --surface: #0f172a;
             --text: #eaeaea;
             --muted: #bdbdbd;
             --accent: #6ee7b7;
@@ -21,25 +27,23 @@
             --link: #93c5fd;
         }
 
-        @media (prefers-color-scheme: light) {
-
-            html[data-theme="auto"] :root,
-            html[data-theme="light"] :root {
-                --card-bg: #ffffff;
-                --text: #0b0b0b;
-                --muted: #4b5563;
-                --accent: #059669;
-                --danger: #b91c1c;
-                --warn: #b45309;
-                --link: #1d4ed8;
-            }
+        html[data-theme="light"] {
+            --bg: #f6f7fb;
+            --card-bg: #ffffff;
+            --surface: #ffffff;
+            --text: #0b0b0b;
+            --muted: #4b5563;
+            --accent: #059669;
+            --danger: #b91c1c;
+            --warn: #b45309;
+            --link: #1d4ed8;
         }
 
         html,
         body {
             margin: 0;
             padding: 0;
-            background: #0b0b0b;
+            background: var(--bg);
             color: var(--text);
             font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"
         }
@@ -126,7 +130,7 @@
 
         input[type="number"],
         input[type="search"] {
-            background: #0f172a;
+            background: var(--surface);
             color: var(--text);
             border: 1px solid #334155;
             border-radius: 12px;
@@ -158,7 +162,7 @@
             padding: 12px;
             border: 1px solid #334155;
             border-radius: 12px;
-            background: #0f172a
+            background: var(--surface)
         }
 
         .item .title {
@@ -180,7 +184,7 @@
         }
 
         .toggle {
-            background: #111827;
+            background: var(--surface);
             border: 1px solid #374151
         }
     </style>
@@ -189,8 +193,7 @@
 <body>
     <div class="container grid" style="gap:22px">
         <header class="row">
-            <h1 style="margin:0">Składki przedszkolne</h1>
-            <span class="badge accent" id="groupName">—</span>
+            <h1 style="margin:0">Składki Kaczuszek</h1>
             <div class="space"></div>
             <button id="themeBtn" class="toggle" aria-label="Przełącz motyw">🌗 Motyw</button>
         </header>
@@ -241,9 +244,6 @@
             <div class="row"><strong>Jak wpłacić</strong></div>
             <div id="payInfo" style="margin-top:8px"></div>
         </section>
-
-        <div class="footer">Dane są ładowane z <span class="mono">data.enc.json</span> (base64). Aktualizacje wykonujesz
-            tylko w JSON i generujesz plik zakodowany lokalnie.</div>
     </div>
 
     <script>
@@ -251,8 +251,8 @@
             // Theme handling
             const themeBtn = document.getElementById('themeBtn');
             const applyTheme = (mode) => { document.documentElement.setAttribute('data-theme', mode); localStorage.setItem('theme', mode); }
-            applyTheme(localStorage.getItem('theme') || 'dark');
-            themeBtn.addEventListener('click', () => { const cur = document.documentElement.getAttribute('data-theme'); applyTheme(cur === 'dark' ? 'light' : cur === 'light' ? 'auto' : 'dark'); });
+            applyTheme(localStorage.getItem('theme') || 'light');
+            themeBtn.addEventListener('click', () => { const cur = document.documentElement.getAttribute('data-theme'); applyTheme(cur === 'dark' ? 'light' : 'dark'); });
 
             const PLN = (n) => new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN', minimumFractionDigits: 2 }).format(n);
             const el = (id) => document.getElementById(id);
