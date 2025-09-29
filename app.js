@@ -133,7 +133,12 @@
                     const paid = c.paid.includes(n);
                     const due = paid ? 0 : c.amount;
                     totalDue += due;
-                    rows.push(`<li>${escapeHtml(c.name)} — ${paid ? '<span class="badge ok">opłacono</span>' : `<span class="badge due">brak wpłaty (${PLN(c.amount)})</span>`}</li>`);
+                    rows.push(
+                        `<li>${escapeHtml(c.name)} — ${paid
+                            ? '<span class="badge ok">✅ opłacono</span>'
+                            : `<span class="badge due">❌ brak wpłaty (${PLN(c.amount)})</span>`
+                        }</li>`
+                    );
                 });
                 result.innerHTML = `
           <p><strong>Numer ${n}</strong> — status w otwartych zbiórkach:</p>
