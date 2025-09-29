@@ -1,479 +1,553 @@
-<!doctype html>
-<html lang="pl" class="h-full">
+<!DOCTYPE html>
+<html lang="pl" data-theme="dark">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Finanse grupy przedszkolnej</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // Tailwind dark mode support
-        if (
-            localStorage.getItem('theme') === 'dark' ||
-            (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
-        ) {
-            document.documentElement.classList.add('dark')
-        } else {
-            document.documentElement.classList.remove('dark')
-        }
-    </script>
+    <title>Składki przedszkolne – podgląd wpłat</title>
+    <meta name="description"
+        content="Prosta strona dla rodziców do sprawdzania wpłat i wydatków grupy przedszkolnej. Działa na GitHub Pages.">
     <style>
         :root {
-            color-scheme: light dark;
+            --bg: #0b0e11;
+            --card: #12161c;
+            --muted: #9aa4b2;
+            --text: #e5e7eb;
+            --accent: #6ee7b7;
+            --danger: #fda4af;
+            --warn: #fde68a;
+            --link: #93c5fd;
+            --ring: #2563eb;
+            --ok: #34d399;
+            --border: #1f2937;
         }
 
-        .glass {
-            backdrop-filter: blur(10px);
-            background: rgba(255, 255, 255, 0.6);
+        [data-theme="light"] {
+            --bg: #f6f7fb;
+            --card: #ffffff;
+            --text: #0f172a;
+            --muted: #475569;
+            --accent: #059669;
+            --danger: #b91c1c;
+            --warn: #b45309;
+            --link: #1d4ed8;
+            --ring: #2563eb;
+            --ok: #047857;
+            --border: #e5e7eb;
         }
 
-        .glass-dark {
-            backdrop-filter: blur(10px);
-            background: rgba(17, 24, 39, 0.6);
+        html,
+        body {
+            height: 100%
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font: 16px/1.45 system-ui, Segoe UI, Roboto, Ubuntu, Inter, sans-serif
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+            padding: 16px
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px
+        }
+
+        @media(min-width:900px) {
+            .row {
+                grid-template-columns: 1.2fr .8fr
+            }
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, .03), 0 12px 24px rgba(0, 0, 0, .25)
+        }
+
+        h1 {
+            font-size: clamp(1.4rem, 2.5vw, 2rem);
+            margin: 0 0 6px
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            margin: 0 0 8px
+        }
+
+        .muted {
+            color: var(--muted)
+        }
+
+        .pill {
+            display: inline-block;
+            padding: .3rem .6rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, .03);
+            font-size: .85rem
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px
+        }
+
+        .stat {
+            padding: 12px;
+            border-radius: 12px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, .04), transparent)
+        }
+
+        .stat .v {
+            font-weight: 700;
+            font-size: 1.1rem
+        }
+
+        .flex {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap
+        }
+
+        .right {
+            margin-left: auto
+        }
+
+        button,
+        input,
+        select {
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--card);
+            color: var(--text);
+            padding: 10px 12px;
+            font: inherit
+        }
+
+        input:focus,
+        button:focus {
+            outline: 2px solid var(--ring);
+            outline-offset: 2px
+        }
+
+        a {
+            color: var(--link)
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0
+        }
+
+        .table th,
+        .table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--border);
+            text-align: left
+        }
+
+        .badge {
+            padding: .25rem .5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-size: .8rem
+        }
+
+        .ok {
+            color: var(--ok)
+        }
+
+        .danger {
+            color: var(--danger)
+        }
+
+        .warn {
+            color: var(--warn)
+        }
+
+        .hidden {
+            display: none
+        }
+
+        .footer {
+            margin-top: 20px;
+            color: var(--muted);
+            font-size: .9rem
+        }
+
+        .progress {
+            height: 10px;
+            background: rgba(255, 255, 255, .06);
+            border-radius: 999px;
+            overflow: hidden
+        }
+
+        .progress>span {
+            display: block;
+            height: 100%;
+            background: var(--accent)
+        }
+
+        .search-area {
+            display: grid;
+            grid-template-columns: 1fr 120px;
+            gap: 8px
+        }
+
+        @media(min-width:600px) {
+            .search-area {
+                grid-template-columns: 220px 120px auto
+            }
+        }
+
+        .kicker {
+            font-size: .9rem;
+            color: var(--muted)
+        }
+
+        code {
+            background: rgba(255, 255, 255, .06);
+            padding: .1rem .35rem;
+            border-radius: 6px;
+            border: 1px solid var(--border)
         }
     </style>
 </head>
 
-<body class="h-full bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-    <div id="app" class="min-h-screen flex flex-col">
-        <!-- Header -->
-        <header
-            class="sticky top-0 z-40 border-b border-gray-200/60 dark:border-gray-800/60 bg-white/70 dark:bg-gray-900/70 glass dark:glass-dark">
-            <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
-                        <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h11v2H3v-2zm0 4h11v2H3v-2zm0 4h18v2H3v-2z" />
-                    </svg>
-                    <h1 class="text-lg font-semibold">Finanse grupy</h1>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button id="darkToggle"
-                        class="px-3 py-1.5 text-sm rounded-xl border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">
-                        <span class="inline dark:hidden">🌙 Tryb ciemny</span>
-                        <span class="hidden dark:inline">☀️ Tryb jasny</span>
-                    </button>
-                </div>
+<body>
+    <div class="container">
+        <header class="flex" style="gap:10px;margin-bottom:14px">
+            <div>
+                <h1>Składki przedszkolne</h1>
+                <div class="kicker" id="kicker"></div>
+            </div>
+            <div class="right flex">
+                <button id="themeBtn" title="Przełącz motyw">🌗 Motyw</button>
+                <button id="shareBtn" title="Udostępnij link z zakodowanymi danymi">🔗 Udostępnij</button>
             </div>
         </header>
 
-        <!-- Main -->
-        <main class="flex-1">
-            <section class="max-w-3xl mx-auto p-4">
-                <!-- Info cards -->
-                <div id="accountSummary"
-                    class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 opacity-0 transition-opacity"></div>
-
-                <!-- Search -->
-                <div class="mb-4">
-                    <label for="journalNo" class="block text-sm font-medium mb-1">Numer z dziennika</label>
-                    <div class="flex gap-2">
-                        <input id="journalNo" type="text" inputmode="numeric" placeholder="np. 12 lub A12"
-                            class="flex-1 rounded-xl px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800" />
-                        <button id="checkBtn"
-                            class="rounded-xl px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white">Sprawdź</button>
+        <section class="row">
+            <div class="card">
+                <div class="flex" style="justify-content:space-between;align-items:flex-start">
+                    <div>
+                        <h2>Stan konta i zbiórki</h2>
+                        <div class="muted" id="updated"></div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Wpisz numer dziecka z dziennika, aby zobaczyć status opłat.
-                        Dane są anonimowe – brak imion i nazwisk.</p>
+                    <div id="currentBadge" class="pill">—</div>
                 </div>
 
-                <!-- Result -->
-                <div id="result" class="space-y-4"></div>
-
-                <!-- History -->
-                <div id="historyWrap" class="mt-8 hidden">
-                    <h2 class="text-base font-semibold mb-2">Historia (najnowsze → najstarsze)</h2>
-                    <div id="history" class="space-y-2"></div>
+                <div class="grid-3" style="margin-top:10px">
+                    <div class="stat">
+                        <div class="muted">Stan początkowy (sumy cząstkowe)</div>
+                        <div class="v" id="openingSum">—</div>
+                    </div>
+                    <div class="stat">
+                        <div class="muted">Wydatki łącznie</div>
+                        <div class="v" id="expensesSum">—</div>
+                    </div>
+                    <div class="stat">
+                        <div class="muted">Stan bieżący</div>
+                        <div class="v" id="balanceNow">—</div>
+                    </div>
                 </div>
 
-                <!-- Expenses list -->
-                <div id="expensesWrap" class="mt-8 hidden">
-                    <h2 class="text-base font-semibold mb-2">Wydatki (publiczne podsumowanie)</h2>
-                    <div id="expenses" class="space-y-2"></div>
+                <div style="margin-top:16px">
+                    <div class="flex" style="justify-content:space-between;align-items:center">
+                        <div>
+                            <div class="muted">Aktualna zbiórka</div>
+                            <div style="font-weight:700" id="currentTitle">—</div>
+                        </div>
+                        <div class="pill" id="currentStats">—</div>
+                    </div>
+                    <div class="progress" style="margin-top:8px"><span id="currentProgress" style="width:0%"></span>
+                    </div>
                 </div>
-            </section>
-        </main>
 
-        <!-- Footer -->
-        <footer class="border-t border-gray-200/60 dark:border-gray-800/60 py-4 text-center text-xs text-gray-500">
-            <div class="max-w-3xl mx-auto px-4">
-
-                <p>Przykładowa aplikacja statyczna. Dane są szyfrowane po stronie klienta i odblokowywane za pomocą
-                    PIN-u.</p>
+                <div style="margin-top:16px">
+                    <div class="muted" style="margin-bottom:6px">Sumy cząstkowe</div>
+                    <div id="partials" class="flex" style="gap:8px;flex-wrap:wrap"></div>
+                </div>
             </div>
-        </footer>
+
+            <div class="card">
+                <h2>Sprawdź swoją wpłatę</h2>
+                <div class="search-area">
+                    <input id="kidNumber" type="number" min="1" max="25" placeholder="Numer z dziennika (1–25)" />
+                    <button id="checkBtn">Sprawdź</button>
+                    <div id="checkMsg" class="muted"></div>
+                </div>
+                <div id="arrearsBox" class="hidden" style="margin-top:10px"></div>
+                <div style="margin-top:12px" class="muted">Zakres numerów jest walidowany i może wynosić tylko od
+                    <b>1</b> do <b id="maxKids">25</b>.
+                </div>
+            </div>
+        </section>
+
+        <section class="card" style="margin-top:16px">
+            <h2>Wydatki</h2>
+            <table class="table" id="expensesTable">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Opis</th>
+                        <th>Kwota</th>
+                        <th>Dowód</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div class="muted" id="noExpenses" style="display:none">Brak wydatków.</div>
+        </section>
+
+        <section class="card" style="margin-top:16px">
+            <h2>Poprzednie zbiórki</h2>
+            <div id="pastCollections"></div>
+        </section>
+
+        <section class="card" style="margin-top:16px">
+            <h2>Dane do wpłat</h2>
+            <div id="paymentInfo"></div>
+        </section>
+
+        <div class="footer">Dane aktualizowane przez plik <code>data.json</code> lub zakodowane w adresie URL. Ta strona
+            nie zbiera żadnych danych o użytkownikach.</div>
     </div>
 
-    <!-- PIN Modal -->
-    <div id="pinModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-        <div
-            class="w-full max-w-sm rounded-2xl p-6 shadow-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-            <h2 class="text-lg font-semibold mb-2">Podaj PIN, aby wczytać dane</h2>
-            <p class="text-sm text-gray-500 mb-4">To proste zabezpieczenie przed ciekawskimi. Nie wpisuj tu haseł
-                używanych gdzie indziej.</p>
-            <div class="space-y-3">
-                <input id="pinInput" type="password" inputmode="numeric" placeholder="PIN"
-                    class="w-full rounded-xl px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800" />
-                <button id="unlockBtn"
-                    class="w-full rounded-xl px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white">Odblokuj</button>
-                <p id="pinError" class="text-sm text-red-500 hidden">Nieprawidłowy PIN lub dane. Spróbuj ponownie.</p>
-            </div>
-            <p class="text-[11px] text-gray-500 mt-4">Uwaga: w statycznych stronach PIN to tylko utrudnienie dostępu.
-                Nie publikuj danych wrażliwych (imion, adresów, PESEL). Używaj samych numerów z dziennika i kwot.</p>
-        </div>
-    </div>
+    <!--
+    🔧 JAK ZASILAĆ DANYMI (3 opcje, priorytet od 1 do 3):
+    1) URL: dodaj ?data=<BASE64_JSON> do adresu strony (np. przez przycisk „Udostępnij”).
+    2) Plik data.json w tym samym katalogu (GitHub Pages: po prostu wrzuć plik do repo; wrażliwe repo – użyj Branch/PR).
+    3) Wbudowane dane rezerwowe w <script id="embeddedData"> poniżej.
+
+    Dzięki temu możesz trzymać dane poza historią commitów (np. w osobnym branchu) lub generować link z zaszyfrowanymi/zakodowanymi danymi.
+  -->
+    <script id="embeddedData" type="application/json">
+  {
+    "meta": {"group": "Grupa Żabki", "currency": "PLN", "updated": "2025-09-29"},
+    "children": {"min": 1, "max": 25},
+    "balances": [
+      {"label": "klasowe", "amount": 1100.00},
+      {"label": "z książek", "amount": 18.50},
+      {"label": "z zeszłego roku", "amount": 345.46}
+    ],
+    "collections": [
+      {
+        "id": "klasowe-2025",
+        "title": "Klasowe (50 zł/os.)",
+        "type": "per_child",
+        "amount_per_child": 50.00,
+        "range": {"from": 1, "to": 25},
+        "paid_numbers": [1,2,4,5,6,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25],
+        "status": "open",
+        "is_current": true
+      }
+    ],
+    "expenses": [
+      {"date":"2025-09-20","title":"Materiały plastyczne","amount":120.00,"receipt_url":"https://example.com/paragon-2025-09-20.jpg"},
+      {"date":"2025-09-15","title":"Woda na piknik","amount":35.99,"note":"Paragon zagubiony przez dostawcę"}
+    ],
+    "payment_info": {
+      "recipient": "Rada Rodziców – Grupa Kaczuszki",
+      "account": "12 3456 7890 1234 5678 9012 3456",
+      "blik": "886508106",
+      "title_example": "Klasowe, nr 5, Jan Kowalski"
+    }
+  }
+  </script>
 
     <script>
-        // ---- Utility: currency ----
-        const fmt = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' })
+        (function () {
+            const byId = (id) => document.getElementById(id);
 
-        // ---- Theme toggle ----
-        document.getElementById('darkToggle').addEventListener('click', () => {
-            const isDark = document.documentElement.classList.toggle('dark')
-            localStorage.setItem('theme', isDark ? 'dark' : 'light')
-        })
+            // THEME
+            const themeBtn = byId('themeBtn');
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) { document.documentElement.setAttribute('data-theme', savedTheme); }
+            themeBtn.addEventListener('click', () => {
+                const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', cur);
+                localStorage.setItem('theme', cur);
+            });
 
-        // ---- Crypto helpers (WebCrypto) ----
-        async function deriveKey(pin, salt, iterations = 120000) {
-            const enc = new TextEncoder()
-            const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(pin), { name: 'PBKDF2' }, false, ['deriveKey'])
-            return crypto.subtle.deriveKey(
-                { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
-                keyMaterial,
-                { name: 'AES-GCM', length: 256 },
-                false,
-                ['decrypt']
-            )
-        }
-
-        async function decryptData(pin, payload) {
-            // payload: { salt: base64, iv: base64, ct: base64, iterations?: number }
-            const salt = Uint8Array.from(atob(payload.salt), c => c.charCodeAt(0))
-            const iv = Uint8Array.from(atob(payload.iv), c => c.charCodeAt(0))
-            const ct = Uint8Array.from(atob(payload.ct), c => c.charCodeAt(0))
-            const key = await deriveKey(pin, salt, payload.iterations || 120000)
-            const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct)
-            const txt = new TextDecoder().decode(new Uint8Array(pt))
-            return JSON.parse(txt)
-        }
-
-        // ---- State ----
-        let DATA = null // decrypted JSON
-
-        function computeClosed() {
-            try {
-                const entries = Array.isArray(DATA?.entries) ? DATA.entries : []
-                if (!entries.length) return false
-                return entries.every(e => !!e.paid)
-            } catch { return false }
-        }
-
-        function computeStats() {
-            const entries = Array.isArray(DATA?.entries) ? DATA.entries : []
-            const totalCount = entries.length
-            const paidCount = entries.filter(e => !!e.paid).length
-            const amountDue = Number(DATA?.fees?.amountDue || 0)
-            const collected = entries.reduce((s, e) => s + Number(e.amountPaid || 0), 0)
-            const expected = amountDue ? amountDue * totalCount : 0
-            const outstanding = expected - collected
-            const progress = expected ? Math.min(100, Math.round((collected / expected) * 100)) : (paidCount && totalCount ? Math.round((paidCount / totalCount) * 100) : 0)
-            return { paidCount, totalCount, collected, expected, outstanding, progress }
-        }    }
-
-        // ---- DOM refs ----
-        const pinModal = document.getElementById('pinModal')
-        const pinInput = document.getElementById('pinInput')
-        const unlockBtn = document.getElementById('unlockBtn')
-        const pinError = document.getElementById('pinError')
-
-        const summaryEl = document.getElementById('accountSummary')
-        const resultEl = document.getElementById('result')
-        const expensesWrap = document.getElementById('expensesWrap')
-        const expensesEl = document.getElementById('expenses')
-
-        const historyWrap = document.getElementById('historyWrap')
-        const historyEl = document.getElementById('history')
-
-        // Public info (aggregate receipts, totals)
-        const publicInfoWrap = document.createElement('div')
-        publicInfoWrap.id = 'publicInfoWrap'
-        publicInfoWrap.className = 'mt-6 hidden'
-        expensesWrap.insertAdjacentElement('afterend', publicInfoWrap)
-
-        // ---- Load encrypted payload ----
-        let ENCRYPTED_PAYLOAD = null
-        async function fetchEncrypted() {
-            // Place your encrypted file at ./data.enc.json
-            const res = await fetch('./data.enc.json', { cache: 'no-store' })
-            if (!res.ok) throw new Error('Nie można pobrać danych')
-            ENCRYPTED_PAYLOAD = await res.json()
-        }
-
-        // ---- Renderers ----
-        function renderSummary() {
-            const { account, fees } = DATA
-            const { paidCount, totalCount, collected, expected, outstanding, progress } = computeStats()
-
-            // Auto-close when everyone paid
-            const isClosedAuto = paidCount === totalCount && totalCount > 0
-            DATA.fees.closed = typeof fees.closed === 'boolean' ? (fees.closed || isClosedAuto) : isClosedAuto
-
-            const statusBadge = DATA.fees.closed
-                ? '<span class="px-2 py-0.5 text-[11px] rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">ZAKOŃCZONA</span>'
-                : '<span class="px-2 py-0.5 text-[11px] rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">TRWA</span>'
-
-            // Top summary cards
-            summaryEl.innerHTML = `
-        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-800 shadow-sm">
-          <div class="text-xs text-gray-500">Stan konta (łącznie)</div>
-          <div class="text-2xl font-semibold">${fmt.format(account.balance)}</div>
-          <div class="text-xs text-gray-500 mt-1">Aktualizacja: ${account.lastUpdate}</div>
-        </div>
-        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-800 shadow-sm">
-          <div class="flex items-center justify-between mb-2">
-            <div>
-              <div class="text-xs text-gray-500">Bieżąca składka</div>
-              <div class="text-lg font-medium">${fees.currentPeriod || ''} • ${fmt.format(fees.amountDue || 0)}</div>
-            </div>
-            ${statusBadge}
-          </div>
-          <div class="text-sm flex gap-3 flex-wrap">
-            <div><span class="text-gray-500">Wpłaty:</span> <strong>${paidCount}/${totalCount}</strong></div>
-            <div><span class="text-gray-500">Zebrano:</span> <strong>${fmt.format(collected)}</strong></div>
-            ${expected ? `<div><span class="text-gray-500">Plan:</span> <strong>${fmt.format(expected)}</strong></div>` : ''}
-            ${expected ? `<div><span class="text-gray-500">Brakuje:</span> <strong>${fmt.format(Math.max(outstanding, 0))}</strong></div>` : ''}
-          </div>
-          <div class="mt-2 h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden" aria-label="postęp zbiórki">
-            <div class="h-full bg-blue-600 dark:bg-blue-500" style="width:${progress}%"></div>
-          </div>
-          ${fees.description ? `<div class="text-xs text-gray-500 mt-1">${fees.description}</div>` : ''}
-        </div>`
-
-            // Breakdown tiles (if provided)
-            const breakdown = Array.isArray(account.breakdown) ? account.breakdown : []
-            if (breakdown.length) {
-                const grid = document.createElement('div')
-                grid.className = 'sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3'
-                breakdown.forEach(item => {
-                    const card = document.createElement('div')
-                    card.className = 'rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-800 shadow-sm'
-                    card.innerHTML = `
-            <div class="text-xs text-gray-500">${item.name}</div>
-            <div class="text-xl font-semibold">${fmt.format(item.balance || 0)}</div>
-          `
-                    grid.appendChild(card)
-                })
-                summaryEl.appendChild(grid)
+            // DATA LOADING STRATEGY: URL ?data=BASE64 > data.json > embedded
+            async function loadData() {
+                const url = new URL(window.location.href);
+                const encoded = url.searchParams.get('data');
+                if (encoded) {
+                    try { return JSON.parse(atob(encoded)); } catch (e) { console.warn('Niepoprawny BASE64 JSON w URL', e); }
+                }
+                try {
+                    const r = await fetch('data.json', { cache: 'no-store' });
+                    if (r.ok) { return await r.json(); }
+                } catch (e) { /* ignore */ }
+                try {
+                    return JSON.parse(byId('embeddedData').textContent);
+                } catch (e) { alert('Błąd w danych wbudowanych.'); throw e; }
             }
 
-            summaryEl.style.opacity = 1
-        }
+            function z(n) { return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: data.meta?.currency || 'PLN' }).format(n); }
 
-        function renderChildStatus(entry) {
-            resultEl.innerHTML = ''
-            if (!entry) {
-                resultEl.innerHTML = `<div class="rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-950/30 dark:text-amber-100 p-4">
-          Nie znaleziono takiego numeru. Sprawdź wpis.
-        </div>`
-                return
+            // SHARE current data as ?data=BASE64
+            const shareBtn = byId('shareBtn');
+            shareBtn.addEventListener('click', async () => {
+                const base = location.origin + location.pathname + '?data=' + btoa(JSON.stringify(data));
+                await navigator.clipboard.writeText(base);
+                alert('Skopiowano link z danymi do schowka.');
+            });
+
+            let data = null;
+
+            function validateKidNumber(n) {
+                const min = data.children?.min ?? 1;
+                const max = data.children?.max ?? 25;
+                if (!Number.isInteger(n) || n < min || n > max) return { ok: false, msg: `Podaj numer ${min}–${max}.` };
+                return { ok: true, msg: '' };
             }
 
-            // Per-collection status list
-            const collections = Array.isArray(DATA.collections) ? DATA.collections : []
-            const payments = entry.payments || {}
-            const rows = collections.map(col => {
-                const p = payments[col.id]
-                const paid = !!(p && p.paid)
-                const badge = paid
-                    ? '<span class="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">OPŁACONO</span>'
-                    : '<span class="px-2 py-0.5 text-xs rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200">DO ZAPŁATY</span>'
-                const amountPaid = Number(p?.amountPaid || 0)
-                const due = Number(col.amountDue || 0)
-                const remaining = Math.max(due - amountPaid, 0)
-                return `
-          <div class="flex items-center justify-between gap-3 py-2 border-b border-gray-200/70 dark:border-gray-800/60">
-            <div>
-              <div class="text-sm font-medium">${col.name} ${col.period ? `• ${col.period}` : ''}</div>
-              <div class="text-xs text-gray-500">${paid ? `Zapłacono: <strong>${fmt.format(amountPaid)}</strong>` : `Do zapłaty: <strong>${fmt.format(remaining)}</strong> (z ${fmt.format(due)})`}</div>
-            </div>
-            ${badge}
-          </div>`
-            }).join('') || '<div class="text-sm text-gray-500">Brak zdefiniowanych zbiórek</div>'
-
-            resultEl.innerHTML = `
-        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-800 shadow-sm">
-          <div class="flex items-center justify-between">
-            <div class="text-base font-semibold">Numer: ${entry.journalNo}</div>
-          </div>
-          <div class="mt-2">${rows}</div>
-        </div>`
-        }
-
-        const paidBadge = entry.paid
-            ? `<span class="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">OPŁACONO</span>`
-            : `<span class="px-2 py-0.5 text-xs rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200">DO ZAPŁATY</span>`
-
-        const allocations = (entry.allocations || [])
-            .map(a => `<div class="flex justify-between text-sm"><span>${a.purpose}</span><span>${fmt.format(a.amount)}</span></div>`)
-            .join('') || '<div class="text-sm text-gray-500">Brak alokacji</div>'
-
-        const receipts = (entry.receipts || [])
-            .map(url => `<a class="text-blue-600 dark:text-blue-400 underline" href="${url}" target="_blank" rel="noreferrer">Paragon</a>`)
-            .join(' · ') || '<span class="text-gray-500">Brak paragonów</span>'
-
-        const dueInfo = entry.paid
-            ? `<div class="text-sm text-gray-500">Zapłacono: <strong>${fmt.format(entry.amountPaid || 0)}</strong> ${entry.paidOn ? `(${entry.paidOn})` : ''}</div>`
-            : `<div class="text-sm text-gray-500">Do zapłaty: <strong>${fmt.format((DATA.fees?.amountDue || 0) - (entry.amountPaid || 0))}</strong></div>`
-
-        resultEl.innerHTML = `
-        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-800 shadow-sm">
-          <div class="flex items-center justify-between">
-            <div class="text-base font-semibold">Numer: ${entry.journalNo}</div>
-            ${paidBadge}
-          </div>
-          <div class="mt-2 space-y-1">
-            ${dueInfo}
-            <div class="text-sm">Na co przeznaczono / przeznaczy się środki:</div>
-            <div class="mt-1 space-y-0.5">${allocations}</div>
-            <div class="mt-2 text-sm">Paragony: ${receipts}</div>
-          </div>
-        </div>`
-    }
-
-        function renderExpenses() {
-            const items = DATA.expenses || []
-            if (!items.length) { expensesWrap.classList.add('hidden'); return }
-            expensesWrap.classList.remove('hidden')
-            const total = items.reduce((s, e) => s + Number(e.amount || 0), 0)
-            expensesWrap.querySelector('h2').innerHTML = `Ogólna informacja (wydatki i paragony) — suma: ${fmt.format(total)}`
-            expensesEl.innerHTML = items.map(e => `
-        <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-3 bg-white dark:bg-gray-800">
-          <div class="flex items-center justify-between text-sm">
-            <div class="font-medium">${e.purpose}</div>
-            <div>${fmt.format(e.amount)}</div>
-          </div>
-          ${e.receipt ? `<div class=\"text-xs\"><a class=\"text-blue-600 dark:text-blue-400 underline\" href=\"${e.receipt}\" target=\"_blank\" rel=\"noreferrer\">Paragon</a></div>` : ''}
-        </div>`).join('')
-
-            // Also render ledger/history (global transactions)
-            renderHistory()
-        }
-
-        function renderHistory() {
-            const ledger = Array.isArray(DATA.ledger) ? [...DATA.ledger] : []
-            if (!ledger.length) { historyWrap.classList.add('hidden'); return }
-            historyWrap.classList.remove('hidden')
-            // Sort by ts desc if present; otherwise keep as-is
-            ledger.sort((a, b) => (b.ts || 0) - (a.ts || 0))
-            const kindBadge = (k) => ({
-                'wpłata': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200',
-                'wydatek': 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200',
-                'uznanie': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
-            }[k] || 'bg-gray-100 text-gray-700 dark:bg-gray-800/60 dark:text-gray-200')
-
-            historyEl.innerHTML = ledger.map(tx => {
-                const badge = `<span class=\"px-2 py-0.5 text-[11px] rounded-full ${kindBadge(tx.kind)}\">${tx.kind.toUpperCase()}</span>`
-                const amount = `${fmt.format(Number(tx.amount || 0))}`
-                const who = tx.journalNo ? ` • nr dz.: ${tx.journalNo}` : ''
-                const col = tx.collectionId ? ` • zbiórka: ${getCollectionName(tx.collectionId)}` : ''
-                const note = tx.note ? ` — ${tx.note}` : ''
-                const receipt = tx.receipt ? ` <a class=\"text-blue-600 dark:text-blue-400 underline\" href=\"${tx.receipt}\" target=\"_blank\" rel=\"noreferrer\">Paragon</a>` : ''
-                return `
-          <div class=\"rounded-xl border border-gray-200 dark:border-gray-800 p-3 bg-white dark:bg-gray-800\">
-            <div class=\"flex items-center justify-between text-sm\">
-              <div class=\"font-medium\">${badge} <span class=\"align-middle\">${amount}</span></div>
-              <div class=\"text-xs text-gray-500\">${tx.ref || ''}</div>
-            </div>
-            <div class=\"text-xs text-gray-600 dark:text-gray-300 mt-1\">${(tx.purpose || '')}${who}${col}${note}${receipt}</div>
-          </div>`
-            }).join('')
-        }
-
-        function getCollectionName(id) {
-            const c = (DATA.collections || []).find(x => x.id === id)
-            return c ? c.name : id
-        } expensesWrap.classList.remove('hidden')
-        const total = items.reduce((s, e) => s + Number(e.amount || 0), 0)
-        expensesWrap.querySelector('h2').innerHTML = `Ogólna informacja (wydatki i paragony) — suma: ${fmt.format(total)}`
-        expensesEl.innerHTML = items.map(e => `
-        <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-3 bg-white dark:bg-gray-800">
-          <div class="flex items-center justify-between text-sm">
-            <div class="font-medium">${e.purpose}</div>
-            <div>${fmt.format(e.amount)}</div>
-          </div>
-          <div class="text-xs text-gray-500">${e.date || ''}</div>
-          ${e.receipt ? `<a class=\"text-xs text-blue-600 dark:text-blue-400 underline\" href=\"${e.receipt}\" target=\"_blank\" rel=\"noreferrer\">Paragon</a>` : ''}
-        </div>`).join('')
-
-        // Public info block combining all receipts (entries + expenses)
-        const entryReceipts = (DATA.entries || []).flatMap(e => e.receipts || [])
-        const expenseReceipts = items.map(e => e.receipt).filter(Boolean)
-        const allReceipts = [...new Set([...entryReceipts, ...expenseReceipts])]
-        const { collected, expected, outstanding } = computeStats()
-
-        if (allReceipts.length || expected) {
-            publicInfoWrap.classList.remove('hidden')
-            publicInfoWrap.innerHTML = `
-          <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-800 shadow-sm">
-            <div class="text-base font-semibold mb-1">Publiczna informacja rozliczeniowa</div>
-            <div class="text-sm text-gray-600 dark:text-gray-300">
-              <div>Plan zbiórki: <strong>${fmt.format(expected || 0)}</strong></div>
-              <div>Zebrano: <strong>${fmt.format(collected || 0)}</strong></div>
-              <div>Do domknięcia: <strong>${fmt.format(Math.max(outstanding || 0, 0))}</strong></div>
-            </div>
-            ${allReceipts.length ? `<div class="mt-3 text-sm">
-              <div class="text-xs text-gray-500 mb-1">Wszystkie paragony (publiczne):</div>
-              <div class="flex flex-wrap gap-2">${allReceipts.map((u, i) => `<a class=\"text-blue-600 dark:text-blue-400 underline\" href=\"${u}\" target=\"_blank\" rel=\"noreferrer\">Paragon ${i + 1}</a>`).join(' ')}</div>
-            </div>` : ''}
-          </div>`
-        }
-    }
-        expensesWrap.classList.remove('hidden')
-        expensesEl.innerHTML = items.map(e => `
-        <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-3 bg-white dark:bg-gray-800">
-          <div class="flex items-center justify-between text-sm">
-            <div class="font-medium">${e.purpose}</div>
-            <div>${fmt.format(e.amount)}</div>
-          </div>
-          <div class="text-xs text-gray-500">${e.date || ''}</div>
-          ${e.receipt ? `<a class=\"text-xs text-blue-600 dark:text-blue-400 underline\" href=\"${e.receipt}\" target=\"_blank\" rel=\"noreferrer\">Paragon</a>` : ''}
-        </div>`).join('')
-    }
-
-        // ---- Events ----
-        document.getElementById('checkBtn').addEventListener('click', () => {
-            const val = (document.getElementById('journalNo').value || '').trim()
-            if (!val) return
-            const entry = (DATA.entries || []).find(e => (e.journalNo + '').toLowerCase() === val.toLowerCase())
-            renderChildStatus(entry)
-        })
-
-        // Enter on PIN or on search
-        pinInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlockBtn.click() })
-        document.getElementById('journalNo').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('checkBtn').click() })
-
-        unlockBtn.addEventListener('click', async () => {
-            pinError.classList.add('hidden')
-            const pin = pinInput.value
-            if (!pin) return
-            try {
-                if (!ENCRYPTED_PAYLOAD) await fetchEncrypted()
-                DATA = await decryptData(pin, ENCRYPTED_PAYLOAD)
-                if (!DATA.fees) DATA.fees = { currentPeriod: '', amountDue: 0, description: '', closed: false }
-                // Auto-close based on entries
-                const closedAuto = computeClosed()
-                DATA.fees.closed = typeof DATA.fees.closed === 'boolean' ? (DATA.fees.closed || closedAuto) : closedAuto
-                pinModal.remove()
-                renderSummary()
-                renderExpenses()
-            } catch (e) {
-                console.error(e)
-                pinError.classList.remove('hidden')
+            function computeOpeningSum() {
+                return (data.balances || []).reduce((s, x) => s + Number(x.amount || 0), 0);
             }
-        })
+            function computeExpensesSum() {
+                return (data.expenses || []).reduce((s, x) => s + Number(x.amount || 0), 0);
+            }
 
-        // Optional: auto-focus
-        setTimeout(() => pinInput.focus(), 100)
+            function renderTop() {
+                byId('kicker').textContent = data.meta?.group || '';
+                byId('updated').textContent = `Ostatnia aktualizacja: ${data.meta?.updated || '—'}`;
 
+                // Opening, expenses, now
+                const opening = computeOpeningSum();
+                const expSum = computeExpensesSum();
+                const now = opening - expSum;
+                byId('openingSum').textContent = z(opening);
+                byId('expensesSum').textContent = z(expSum);
+                byId('balanceNow').textContent = z(now);
+
+                // Partials
+                const wrap = byId('partials');
+                wrap.innerHTML = '';
+                (data.balances || []).forEach(b => {
+                    const el = document.createElement('div');
+                    el.className = 'pill';
+                    el.textContent = `${b.label}: ${z(Number(b.amount || 0))}`;
+                    wrap.appendChild(el);
+                });
+
+                // Current collection
+                const cur = (data.collections || []).find(c => c.is_current) || null;
+                const maxKids = (data.children?.max ?? 25);
+                byId('maxKids').textContent = maxKids;
+                if (cur) {
+                    byId('currentBadge').textContent = cur.status === 'open' ? 'zbiórka otwarta' : 'zakończona';
+                    byId('currentTitle').textContent = cur.title;
+                    const totalExpected = (cur.range?.to - cur.range?.from + 1) * Number(cur.amount_per_child || 0);
+                    const paidCount = (cur.paid_numbers || []).length;
+                    const paidAmt = paidCount * Number(cur.amount_per_child || 0);
+                    const pct = totalExpected > 0 ? Math.round(100 * paidAmt / totalExpected) : 0;
+                    byId('currentStats').textContent = `${paidCount}/${cur.range?.to} opłaconych • ${z(paidAmt)} / ${z(totalExpected)}`;
+                    byId('currentProgress').style.width = pct + '%';
+                } else {
+                    byId('currentBadge').textContent = 'brak aktywnej zbiórki';
+                    byId('currentTitle').textContent = '—';
+                    byId('currentStats').textContent = '—';
+                    byId('currentProgress').style.width = '0%';
+                }
+            }
+
+            function renderExpenses() {
+                const tbody = byId('expensesTable').querySelector('tbody');
+                tbody.innerHTML = '';
+                const arr = (data.expenses || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                if (arr.length === 0) { byId('noExpenses').style.display = 'block'; return; }
+                byId('noExpenses').style.display = 'none';
+                for (const e of arr) {
+                    const tr = document.createElement('tr');
+                    const linkCell = (() => {
+                        if (e.receipt_url) { return `<a href="${e.receipt_url}" target="_blank" rel="noopener">paragon</a>`; }
+                        if (e.note) { return `<span class="warn">${e.note}</span>`; }
+                        return '<span class="muted">brak danych</span>';
+                    })();
+                    tr.innerHTML = `<td>${e.date || ''}</td><td>${e.title || ''}</td><td>${z(Number(e.amount || 0))}</td><td>${linkCell}</td>`;
+                    tbody.appendChild(tr);
+                }
+            }
+
+            function renderPastCollections() {
+                const box = byId('pastCollections');
+                box.innerHTML = '';
+                const past = (data.collections || []).filter(c => !c.is_current);
+                if (past.length === 0) { box.innerHTML = '<div class="muted">Brak wcześniejszych zbiórek.</div>'; return; }
+                const tbl = document.createElement('table'); tbl.className = 'table';
+                tbl.innerHTML = '<thead><tr><th>Nazwa</th><th>Status</th><th>Kwota zebrana</th><th>Oczekiwana</th><th>Pokrycie</th></tr></thead>';
+                const tb = document.createElement('tbody');
+                for (const c of past) {
+                    const expected = (c.range?.to - c.range?.from + 1) * Number(c.amount_per_child || 0);
+                    const paid = (c.paid_numbers || []).length * Number(c.amount_per_child || 0);
+                    const pct = expected > 0 ? Math.round(100 * paid / expected) : 0;
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${c.title}</td><td>${c.status || '-'}</td><td>${z(paid)}</td><td>${z(expected)}</td><td>${pct}%</td>`;
+                    tb.appendChild(tr);
+                }
+                tbl.appendChild(tb); box.appendChild(tbl);
+            }
+
+            function searchKid(num) {
+                // Validate 1..max
+                const v = validateKidNumber(num);
+                const out = byId('checkMsg');
+                const arrearsBox = byId('arrearsBox');
+                arrearsBox.classList.add('hidden'); arrearsBox.innerHTML = '';
+                if (!v.ok) { out.innerHTML = `<span class="danger">${v.msg}</span>`; return; }
+                const openCollections = (data.collections || []).filter(c => (c.status || 'open') === 'open');
+                let totalArrears = 0;
+                const lines = [];
+                for (const c of openCollections) {
+                    const paid = (c.paid_numbers || []).includes(num);
+                    if (!paid) {
+                        const due = Number(c.amount_per_child || 0);
+                        totalArrears += due;
+                        lines.push(`<li>${c.title}: <b>${z(due)}</b> (brak wpłaty)</li>`);
+                    } else {
+                        lines.push(`<li>${c.title}: <span class="ok">wpłacono</span></li>`);
+                    }
+                }
+                if (openCollections.length === 0) {
+                    out.innerHTML = '<span class="ok">Brak otwartych zbiórek.</span>';
+                    return;
+                }
+                if (totalArrears === 0) {
+                    out.innerHTML = '<span class="ok">Wszystko opłacone. Dziękujemy! 🎉</span>';
+                } else {
+                    out.innerHTML = `<span class="warn">Zaległość łączna: <b>${z(totalArrears)}</b></span>`;
+                }
+                arrearsBox.classList.remove('hidden');
+                arrearsBox.innerHTML = `<ul style="margin:0;padding-left:18px">${lines.join('')}</ul>`;
+            }
+
+            // Bind search
+            byId('checkBtn').addEventListener('click', () => {
+                const n = Number(byId('kidNumber').value);
+                searchKid(n | 0);
+            });
+            byId('kidNumber').addEventListener('keydown', (e) => { if (e.key === 'Enter') { byId('checkBtn').click(); } });
+
+            // INIT
+            loadData().then(json => { data = json; renderTop(); renderExpenses(); renderPastCollections(); });
+        })();
     </script>
 </body>
 
