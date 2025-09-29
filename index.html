@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="pl" class="h-full">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Finanse grupy przedszkolnej</title>
+    <!-- Tailwind (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React (bez builda, przez CDN) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <meta name="description"
+        content="Przejrzysty podgląd stanu konta, składek i wydatków grupy przedszkolnej. Dane trzymane w pliku data/data.json." />
+    <style>
+        /* Prosty fallback dla focus ringów na klawiaturze */
+        :focus-visible {
+            outline: 2px solid;
+            outline-offset: 2px;
+        }
+    </style>
+</head>
+
+<body class="h-full bg-slate-50 text-slate-900">
+    <div id="root" class="min-h-screen"></div>
+
+    <!--
+  =========================================
+  🔧 INSTRUKCJA DLA CIEBIE (Jakub):
+  =========================================
+  1) Wrzuć ten plik jako index.html do repo na GitHubie (np. repo: rodzice-finanse).
+  2) Utwórz folder: data/ i dodaj tam plik data.json zgodny ze SCHEMATEM poniżej.
+  3) (Opcjonalnie) Dodaj folder receipts/ z obrazkami paragonów; linki w data.json.
+  4) Włącz GitHub Pages (Settings ➜ Pages ➜ Deploy from branch ➜ /root).
+  5) Prywatność: ten widok jest publiczny. Używamy NUMERU Z DZIENNICZKA jako identyfikatora.
+     Jeśli chcesz ograniczyć dostęp, rozważ:
+       - Hasło do całej strony (np. Staticrypt / Cloudflare Access),
+       - Trzymanie szczegółowych danych zaszyfrowanych i odszyfrowanie po wpisaniu PIN-u rodzica
+         (to wymaga osobnej implementacji – mogę dodać w kolejnej iteracji),
+       - Minimalizację zakresu danych (tylko status opłaty bez kwot per dziecko).
+
+  =========================================
+  📦 SCHEMAT PLIKU data/data.json
+  =========================================
+  {
+    "settings": {
+      "groupName": "Pszczółki",
+      "currency": "PLN",
+      "currentPeriod": "2025-09"  // format YYYY-MM
+    },
+    "account": {
+      "openingBalance": 0
+    },
+    "income": [
+      // Dobrowolne wpłaty, dotacje, itp.
+      { "date": "2025-09-05", "title": "Wpłaty rodziców wrzesień", "amount": 800 }
+    ],
+    "expenses": [
+      { "date": "2025-09-12", "title": "Materiały plastyczne", "amount": 120, "receiptUrl": "receipts/2025-09/mat-plastyczne-120.jpg" },
+      { "date": "2025-09-20", "title": "Wycieczka autobus", "amount": 240 }
+    ],
+    "fees": {
+      "periods": ["2025-09", "2025-10"],
+      "perPeriodAmount": 50
+    },
+    "students": [
+      // 🔑 Uwaga: identyfikacja wyłącznie przez numer z dziennika (bez nazwisk)
+      {
+        "journalNo": "12",
+        "payments": [
+          { "period": "2025-09", "paid": true, "amount": 50, "date": "2025-09-08" },
+          { "period": "2025-10", "paid": false }
+        ]
+      },
+      {
+        "journalNo": "27",
+        "payments": [
+          { "period": "2025-09", "paid": false },
+          { "period": "2025-10", "paid": false }
+        ]
+      }
+    ]
+  }
+
+  👉 Wystarczy edytować data/data.json w GitHubie, aby zaktualizować widok.
+  👉 Saldo = openingBalance + suma(income) − suma(expenses). Per‑dziecko nie pokazujemy kwot – tylko status.
+  -->
+
+    <script type="text/babel">
+        const { useEffect, useMemo, useState } = React;
+
+        // Fallback demo data (używane tylko jeśli nie znajdziemy data/data.json)
+        const DEMO_DATA = {
+            settings: { groupName: "Pszczółki", currency: "PLN", currentPeriod: "2025-09" },
+            account: { openingBalance: 0 },
+            income: [{ date: "2025-09-05", title: "Wpłaty rodziców wrzesień", amount: 800 }],
+            expenses: [
+                { date: "2025-09-12", title: "Materiały plastyczne", amount: 120, receiptUrl: "#" },
+                { date: "2025-09-20", title: "Wycieczka autobus", amount: 240 }
+            ],
+            fees: { periods: ["2025-09", "2025-10"], perPeriodAmount: 50 },
+            students: [
+                { journalNo: "12", payments: [{ period: "2025-09", paid: true, amount: 50, date: "2025-09-08" }, { period: "2025-10", paid: false }] },
+                { journalNo: "27", payments: [{ period: "2025-09", paid: false }, { period: "2025-10", paid: false }] }
+            ]
+        };
+
+        function classNames(...arr) { return arr.filter(Boolean).join(' '); }
+
+        function useData() {
+            const [data, setData] = useState(null);
+            const [error, setError] = useState(null);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                fetch('data/data.json', { cache: 'no-store' })
+                    .then(r => { if (!r.ok) throw new Error('Brak pliku data/data.json – używam danych DEMO'); return r.json(); })
+                    .then(json => setData(json))
+                    .catch(err => { console.warn(err); setError(err); setData(DEMO_DATA); })
+                    .finally(() => setLoading(false));
+            }, []);
+
+            return { data, error, loading };
+        }
+
+        function currencyFmt(n, currency) {
+            const v = Number(n || 0);
+            return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: currency || 'PLN', maximumFractionDigits: 2 }).format(v);
+        }
+
+        function calcTotals(data) {
+            const income = (data.income || []).reduce((s, i) => s + Number(i.amount || 0), 0);
+            const expenses = (data.expenses || []).reduce((s, e) => s + Number(e.amount || 0), 0);
+            const opening = Number(data.account?.openingBalance || 0);
+            const balance = opening + income - expenses;
+            return { income, expenses, opening, balance };
+        }
+
+        function PaymentLookup({ data }) {
+            const [journalNo, setJournalNo] = useState("");
+            const [result, setResult] = useState(null);
+            const { currentPeriod } = data.settings || {};
+
+            function onSearch(e) {
+                e.preventDefault();
+                const rec = (data.students || []).find(s => (s.journalNo || "").trim() === journalNo.trim());
+                setResult(rec || { notFound: true });
+            }
+
+            const statusBadge = (paid) => (
+                <span className={classNames(
+                    'inline-flex items-center rounded-full px-2 py-1 text-xs font-medium',
+                    paid ? 'bg-green-100 text-green-800' : 'bg-rose-100 text-rose-800'
+                )}>
+                    {paid ? 'Opłacono' : 'Nieopłacono'}
+                </span>
+            );
+
+            return (
+                <div className="bg-white rounded-2xl shadow p-5">
+                    <h2 className="text-lg font-semibold mb-3">Sprawdź status składki</h2>
+                    <form onSubmit={onSearch} className="flex gap-2 items-end flex-wrap">
+                        <label className="flex flex-col">
+                            <span className="text-sm text-slate-600">Numer z dzienniczka</span>
+                            <input
+                                required
+                                inputMode="numeric"
+                                pattern="[0-9]+"
+                                placeholder="np. 12"
+                                className="mt-1 rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                value={journalNo}
+                                onChange={e => setJournalNo(e.target.value)}
+                            />
+                        </label>
+                        <button className="rounded-xl bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 active:scale-[.99]">Sprawdź</button>
+                    </form>
+
+                    {result && (
+                        <div className="mt-4">
+                            {result.notFound ? (
+                                <p className="text-sm text-slate-600">Nie znaleziono numeru <b>{journalNo}</b>. Sprawdź, czy wpisano poprawnie.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-slate-600">Bieżący okres:</span>
+                                        <span className="font-medium">{currentPeriod}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-slate-600">Status:</span>
+                                        {statusBadge((result.payments || []).find(p => p.period === currentPeriod)?.paid === true)}
+                                    </div>
+                                    <details className="rounded-xl border bg-slate-50 p-3">
+                                        <summary className="cursor-pointer text-sm font-medium">Historia wpłat</summary>
+                                        <ul className="mt-2 text-sm">
+                                            {(result.payments || []).map((p, idx) => (
+                                                <li key={idx} className="flex justify-between border-b last:border-0 py-1">
+                                                    <span className="text-slate-600">{p.period}</span>
+                                                    <span className="flex items-center gap-2">{statusBadge(!!p.paid)}{p.amount ? <em className="not-italic text-slate-600">{currencyFmt(p.amount, data.settings?.currency)}</em> : null}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </details>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function AccountSummary({ data }) {
+            const totals = useMemo(() => calcTotals(data), [data]);
+            const currency = data.settings?.currency || 'PLN';
+
+            const items = [
+                { label: 'Saldo otwarcia', value: currencyFmt(totals.opening, currency) },
+                { label: 'Suma wpływów', value: currencyFmt(totals.income, currency) },
+                { label: 'Suma wydatków', value: currencyFmt(totals.expenses, currency) },
+                { label: 'Bieżące saldo', value: currencyFmt(totals.balance, currency), highlight: true },
+            ];
+
+            return (
+                <div className="bg-white rounded-2xl shadow p-5">
+                    <h2 className="text-lg font-semibold mb-3">Stan konta</h2>
+                    <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {items.map((it, idx) => (
+                            <div key={idx} className={classNames("rounded-xl p-3 border",
+                                it.highlight ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200')}
+                            >
+                                <dt className="text-sm text-slate-600">{it.label}</dt>
+                                <dd className="text-lg font-semibold">{it.value}</dd>
+                            </div>
+                        ))}
+                    </dl>
+                </div>
+            );
+        }
+
+        function Expenses({ data }) {
+            const currency = data.settings?.currency || 'PLN';
+            const rows = (data.expenses || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date));
+
+            return (
+                <div className="bg-white rounded-2xl shadow p-5">
+                    <div className="flex items-center justify-between gap-2">
+                        <h2 className="text-lg font-semibold">Wydatki</h2>
+                        <span className="text-sm text-slate-600">Łącznie: {currencyFmt(rows.reduce((s, r) => s + Number(r.amount || 0), 0), currency)}</span>
+                    </div>
+
+                    <div className="mt-3 overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead>
+                                <tr className="text-left text-slate-600 border-b">
+                                    <th className="py-2 pr-4">Data</th>
+                                    <th className="py-2 pr-4">Tytuł</th>
+                                    <th className="py-2 pr-4">Kwota</th>
+                                    <th className="py-2">Paragon</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map((r, idx) => (
+                                    <tr key={idx} className="border-b last:border-0">
+                                        <td className="py-2 pr-4 whitespace-nowrap">{r.date || '-'}</td>
+                                        <td className="py-2 pr-4">{r.title || '-'}</td>
+                                        <td className="py-2 pr-4 whitespace-nowrap">{currencyFmt(r.amount || 0, currency)}</td>
+                                        <td className="py-2">{r.receiptUrl ? <a target="_blank" rel="noopener noreferrer" href={r.receiptUrl} className="text-indigo-600 hover:underline">zobacz</a> : <span className="text-slate-400">—</span>}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        }
+
+        function Income({ data }) {
+            const currency = data.settings?.currency || 'PLN';
+            const rows = (data.income || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date));
+
+            return (
+                <div className="bg-white rounded-2xl shadow p-5">
+                    <div className="flex items-center justify-between gap-2">
+                        <h2 className="text-lg font-semibold">Wpływy</h2>
+                        <span className="text-sm text-slate-600">Łącznie: {currencyFmt(rows.reduce((s, r) => s + Number(r.amount || 0), 0), currency)}</span>
+                    </div>
+
+                    <div className="mt-3 overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead>
+                                <tr className="text-left text-slate-600 border-b">
+                                    <th className="py-2 pr-4">Data</th>
+                                    <th className="py-2 pr-4">Tytuł</th>
+                                    <th className="py-2 pr-4">Kwota</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map((r, idx) => (
+                                    <tr key={idx} className="border-b last:border-0">
+                                        <td className="py-2 pr-4 whitespace-nowrap">{r.date || '-'}</td>
+                                        <td className="py-2 pr-4">{r.title || '-'}</td>
+                                        <td className="py-2 pr-4 whitespace-nowrap">{currencyFmt(r.amount || 0, currency)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        }
+
+        function FooterNote() {
+            return (
+                <p className="text-xs text-slate-500 text-center mt-8">
+                    Dane mają charakter informacyjny. Jeśli zauważysz błąd – daj znać wychowawcy / skarbnikowi grupy.
+                </p>
+            );
+        }
+
+        function App() {
+            const { data, loading } = useData();
+
+            if (loading) {
+                return (
+                    <div className="flex items-center justify-center min-h-screen">
+                        <div className="animate-pulse text-slate-500">Wczytywanie…</div>
+                    </div>
+                );
+            }
+
+            const title = data.settings?.groupName ? `Finanse grupy – ${data.settings.groupName}` : 'Finanse grupy przedszkolnej';
+
+            return (
+                <main className="max-w-6xl mx-auto p-4 md:p-6">
+                    <header className="mb-6">
+                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{title}</h1>
+                        <p className="text-slate-600 mt-1 text-sm">Podgląd salda, wpływów, wydatków oraz statusu składek po numerze z dzienniczka.</p>
+                    </header>
+
+                    <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+                        <div className="lg:col-span-2 space-y-4 lg:space-y-6">
+                            <AccountSummary data={data} />
+                            <Income data={data} />
+                            <Expenses data={data} />
+                        </div>
+                        <div className="space-y-4 lg:space-y-6">
+                            <PaymentLookup data={data} />
+                            <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4">
+                                <h3 className="font-semibold">Prywatność</h3>
+                                <p className="text-sm mt-1">Strona jest publiczna (GitHub Pages). Ujawniaj minimalny zakres danych (numer z dzienniczka + status). Jeśli potrzebujesz hasła – da się dodać prostą warstwę ochrony.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <FooterNote />
+                </main>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+
+</html>

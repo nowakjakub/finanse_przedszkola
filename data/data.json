@@ -1,0 +1,67 @@
+{
+    "settings": {
+        "groupName": "Kaczuszki",
+        "currency": "PLN",
+        "currentPeriod": "2025-09"
+    },
+    "account": {
+        "openingBalance": 0
+    },
+    "income": [
+        {
+            "date": "2025-09-05",
+            "title": "Wpłaty rodziców wrzesień",
+            "amount": 800
+        }
+    ],
+    "expenses": [
+        {
+            "date": "2025-09-12",
+            "title": "Materiały plastyczne",
+            "amount": 120,
+            "receiptUrl": "receipts/2025-09/mat-plastyczne-120.jpg"
+        },
+        {
+            "date": "2025-09-20",
+            "title": "Wycieczka autobus",
+            "amount": 240
+        }
+    ],
+    "fees": {
+        "periods": [
+            "2025-09",
+            "2025-10"
+        ],
+        "perPeriodAmount": 50
+    },
+    "students": [
+        {
+            "journalNo": "12",
+            "payments": [
+                {
+                    "period": "2025-09",
+                    "paid": true,
+                    "amount": 50,
+                    "date": "2025-09-08"
+                },
+                {
+                    "period": "2025-10",
+                    "paid": false
+                }
+            ]
+        },
+        {
+            "journalNo": "27",
+            "payments": [
+                {
+                    "period": "2025-09",
+                    "paid": false
+                },
+                {
+                    "period": "2025-10",
+                    "paid": false
+                }
+            ]
+        }
+    ]
+}
