@@ -202,19 +202,16 @@
                 <div class="kpi" id="totalBalance">—</div>
                 <div class="muted" id="sourcesHint"></div>
             </div>
-            <div class="card">
-                <div class="row"><strong>Bieżąca zbiórka</strong><span class="badge warn" id="currentLabel">—</span>
+            <div class="card" id="currentSection">
+                <div class="row">
+                    <strong>Bieżące zbiórki</strong>
                 </div>
-                <div class="row" style="margin-top:8px">
-                    <div>
-                        <div class="muted">Nazwa</div>
-                        <div id="currentName" class="title">—</div>
-                    </div>
-                    <div class="space"></div>
-                    <div class="right">
-                        <div class="muted">Zebrano</div>
-                        <div id="currentCollected" class="title">—</div>
-                    </div>
+                <div id="currentList" class="list" style="margin-top:12px; overflow-x:auto;"></div>
+                <div id="currentName" class="title">—</div>
+                <div class="space"></div>
+                <div class="right">
+                    <div class="muted">Zebrano</div>
+                    <div id="currentCollected" class="title">—</div>
                 </div>
                 <div class="muted" id="currentMeta"></div>
             </div>
@@ -264,8 +261,17 @@
             fetch('data.enc.json', { cache: 'no-store' })
                 .then(r => r.json())
                 .then(enc => {
-                    const raw = atob(enc.enc);
-                    const data = JSON.parse(raw);
+                    // UTF-8 safe base64 decode (fixes mojibake like "Klasowe â ...")
+                    let data;
+                    try {
+                        const bin = atob(enc.enc);
+                        const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+                        data = JSON.parse(new TextDecoder('utf-8').decode(bytes));
+                    } catch (e) {
+                        // Fallback for very old browsers
+                        const raw = decodeURIComponent(escape(atob(enc.enc)));
+                        data = JSON.parse(raw);
+                    }
                     render(data);
                 })
                 .catch(err => {
@@ -304,22 +310,39 @@
                 el('totalBalance').textContent = PLN(total);
                 el('sourcesHint').textContent = `Przychody: ${PLN(income)} • Wydatki: ${PLN(expenses)}`;
 
-                // Current collection
-                const current = (model.collections || []).find(c => !!c.current);
-                if (current) {
-                    const paid = current.paid_numbers?.length || 0;
-                    const dueEach = Number(current.amount_per_child) || 0;
-                    const collected = paid * dueEach;
-                    el('currentLabel').textContent = `${paid}/${model.participants.count} opłaconych`;
-                    el('currentName').textContent = current.name;
-                    el('currentCollected').textContent = PLN(collected);
-                    const unpaid = Array.from({ length: model.participants.count }, (_, i) => i + 1).filter(n => !(current.paid_numbers || []).includes(n));
-                    el('currentMeta').textContent = `Kwota: ${PLN(dueEach)} od osoby • Brak wpłat: ${unpaid.join(', ') || '—'}`;
+                // Current collections (support many)
+                const currentWrap = el('currentList');
+                currentWrap.innerHTML = '';
+                const currents = (model.collections || []).filter(c => !!c.current);
+                if (currents.length === 0) {
+                    const div = document.createElement('div');
+                    div.className = 'muted';
+                    div.textContent = 'Brak bieżących zbiórek.';
+                    currentWrap.appendChild(div);
                 } else {
-                    el('currentLabel').textContent = 'brak';
-                    el('currentName').textContent = '—';
-                    el('currentCollected').textContent = '—';
-                    el('currentMeta').textContent = '';
+                    currents.forEach(col => {
+                        const paid = (col.paid_numbers || []).length;
+                        const each = Number(col.amount_per_child) || 0;
+                        const collected = paid * each;
+                        const unpaid = Array.from({ length: model.participants.count }, (_, i) => i + 1)
+                            .filter(n => !(col.paid_numbers || []).includes(n));
+                        const card = document.createElement('div');
+                        card.className = 'item';
+                        card.innerHTML = `
+          <div class="row">
+            <div class="title">${col.name}</div>
+            <div class="space"></div>
+            <span class="badge">${paid}/${model.participants.count}</span>
+          </div>
+          <div class="row muted">
+            <div>Kwota: ${PLN(each)} od osoby</div>
+            <div class="space"></div>
+            <div>Zebrano: <strong>${PLN(collected)}</strong></div>
+          </div>
+          <div class="muted" style="margin-top:6px">Brak wpłat: ${unpaid.length ? unpaid.join(', ') : '—'}</div>
+        `;
+                        currentWrap.appendChild(card);
+                    });
                 }
 
                 // Previous collections
