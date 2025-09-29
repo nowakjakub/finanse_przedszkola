@@ -14,77 +14,50 @@
     <meta name="description"
         content="Przejrzysty podgląd stanu konta, składek i wydatków grupy przedszkolnej. Dane trzymane w pliku data/data.json." />
     <style>
-        /* Prosty fallback dla focus ringów na klawiaturze */
         :focus-visible {
             outline: 2px solid;
             outline-offset: 2px;
         }
     </style>
+    <script>
+        // Dark mode – wstępne ustawienie zanim załaduje się JS
+        (function () {
+            const k = 'pg_dark';
+            try {
+                const pref = localStorage.getItem(k);
+                if (pref === '1' || (!pref && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                }
+            } catch (_) { }
+        })();
+    </script>
 </head>
 
-<body class="h-full bg-slate-50 text-slate-900">
+<body class="h-full bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
     <div id="root" class="min-h-screen"></div>
 
     <!--
   =========================================
   🔧 INSTRUKCJA DLA CIEBIE (Jakub):
   =========================================
-  1) Wrzuć ten plik jako index.html do repo na GitHubie (np. repo: rodzice-finanse).
-  2) Utwórz folder: data/ i dodaj tam plik data.json zgodny ze SCHEMATEM poniżej.
-  3) (Opcjonalnie) Dodaj folder receipts/ z obrazkami paragonów; linki w data.json.
-  4) Włącz GitHub Pages (Settings ➜ Pages ➜ Deploy from branch ➜ /root).
-  5) Prywatność: ten widok jest publiczny. Używamy NUMERU Z DZIENNICZKA jako identyfikatora.
-     Jeśli chcesz ograniczyć dostęp, rozważ:
-       - Hasło do całej strony (np. Staticrypt / Cloudflare Access),
-       - Trzymanie szczegółowych danych zaszyfrowanych i odszyfrowanie po wpisaniu PIN-u rodzica
-         (to wymaga osobnej implementacji – mogę dodać w kolejnej iteracji),
-       - Minimalizację zakresu danych (tylko status opłaty bez kwot per dziecko).
-
-  =========================================
-  📦 SCHEMAT PLIKU data/data.json
-  =========================================
-  {
-    "settings": {
-      "groupName": "Pszczółki",
-      "currency": "PLN",
-      "currentPeriod": "2025-09"  // format YYYY-MM
-    },
-    "account": {
-      "openingBalance": 0
-    },
-    "income": [
-      // Dobrowolne wpłaty, dotacje, itp.
-      { "date": "2025-09-05", "title": "Wpłaty rodziców wrzesień", "amount": 800 }
-    ],
-    "expenses": [
-      { "date": "2025-09-12", "title": "Materiały plastyczne", "amount": 120, "receiptUrl": "receipts/2025-09/mat-plastyczne-120.jpg" },
-      { "date": "2025-09-20", "title": "Wycieczka autobus", "amount": 240 }
-    ],
-    "fees": {
-      "periods": ["2025-09", "2025-10"],
-      "perPeriodAmount": 50
-    },
-    "students": [
-      // 🔑 Uwaga: identyfikacja wyłącznie przez numer z dziennika (bez nazwisk)
-      {
-        "journalNo": "12",
-        "payments": [
-          { "period": "2025-09", "paid": true, "amount": 50, "date": "2025-09-08" },
-          { "period": "2025-10", "paid": false }
-        ]
-      },
-      {
-        "journalNo": "27",
-        "payments": [
-          { "period": "2025-09", "paid": false },
-          { "period": "2025-10", "paid": false }
-        ]
-      }
-    ]
-  }
-
-  👉 Wystarczy edytować data/data.json w GitHubie, aby zaktualizować widok.
-  👉 Saldo = openingBalance + suma(income) − suma(expenses). Per‑dziecko nie pokazujemy kwot – tylko status.
+  1) index.html wrzuć do repo. Dane w data/data.json (patrz schemat poniżej).
+  2) Nowe funkcje: filtr miesiąca, matrix składek, kopiowanie danych przelewu,
+     historia salda (miesięczna), galeria paragonów, PIN dla trybu Skarbnika,
+     dark mode, ikonki i lepszy UX mobilny.
+  3) Uzupełnij settings w data.json o:
+     {
+       "groupName": "Pszczółki",
+       "currency": "PLN",
+       "currentPeriod": "2025-09",
+       "bank": {
+         "accountName": "Rada Rodziców Pszczółki",
+         "iban": "PL00 0000 0000 0000 0000 0000 0000",
+         "titleTemplate": "Składka {period} – nr {journalNo}"
+       },
+       "treasurerPin": "1234" // prosty PIN do trybu Skarbnika
+     }
+  4) Paragony – wrzucaj obrazy do receipts/... i linkuj w expenses[].
+  5) Prywatność: bez PINa nie pokazujemy kwot/dat dla dziecka ani narzędzi Skarbnika.
   -->
 
     <script type="text/babel">
@@ -92,7 +65,17 @@
 
         // Fallback demo data (używane tylko jeśli nie znajdziemy data/data.json)
         const DEMO_DATA = {
-            settings: { groupName: "Pszczółki", currency: "PLN", currentPeriod: "2025-09" },
+            settings: {
+                groupName: "Pszczółki",
+                currency: "PLN",
+                currentPeriod: "2025-09",
+                bank: {
+                    accountName: "Rada Rodziców Pszczółki",
+                    iban: "PL00 0000 0000 0000 0000 0000 0000",
+                    titleTemplate: "Składka {period} – nr {journalNo}"
+                },
+                treasurerPin: "1234"
+            },
             account: { openingBalance: 0 },
             income: [{ date: "2025-09-05", title: "Wpłaty rodziców wrzesień", amount: 800 }],
             expenses: [
@@ -129,18 +112,66 @@
             return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: currency || 'PLN', maximumFractionDigits: 2 }).format(v);
         }
 
-        function calcTotals(data) {
-            const income = (data.income || []).reduce((s, i) => s + Number(i.amount || 0), 0);
-            const expenses = (data.expenses || []).reduce((s, e) => s + Number(e.amount || 0), 0);
-            const opening = Number(data.account?.openingBalance || 0);
+        function calcTotals(data, periodFilter) {
+            const inRange = (d) => !periodFilter || periodFilter === 'ALL' || (d || '').startsWith(periodFilter);
+            const income = (data.income || []).filter(i => inRange(i.date)).reduce((s, i) => s + Number(i.amount || 0), 0);
+            const expenses = (data.expenses || []).filter(e => inRange(e.date)).reduce((s, e) => s + Number(e.amount || 0), 0);
+            const opening = periodFilter && periodFilter !== 'ALL' ? 0 : Number(data.account?.openingBalance || 0);
             const balance = opening + income - expenses;
             return { income, expenses, opening, balance };
         }
 
-        function PaymentLookup({ data }) {
+        function extractAllPeriods(data) {
+            const set = new Set([...(data.fees?.periods || [])]);
+            for (const i of (data.income || [])) if (i.date) set.add(i.date.slice(0, 7));
+            for (const e of (data.expenses || [])) if (e.date) set.add(e.date.slice(0, 7));
+            return Array.from(set).sort();
+        }
+
+        function DarkToggle() {
+            const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+            function toggle() {
+                document.documentElement.classList.toggle('dark');
+                const on = document.documentElement.classList.contains('dark');
+                setIsDark(on);
+                try { localStorage.setItem('pg_dark', on ? '1' : '0'); } catch (_) { }
+            }
+            return (
+                <button onClick={toggle} className="rounded-xl border px-3 py-2 text-sm bg-white/60 dark:bg-slate-800/60">
+                    {isDark ? '🌙 Dark' : '☀️ Light'}
+                </button>
+            );
+        }
+
+        function HeaderBar({ title }) {
+            return (
+                <header className="mb-6 flex items-center justify-between gap-3">
+                    <div>
+                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{title}</h1>
+                        <p className="text-slate-600 dark:text-slate-300 mt-1 text-sm">Podgląd salda, wpływów, wydatków oraz statusu składek po numerze z dzienniczka.</p>
+                    </div>
+                    <DarkToggle />
+                </header>
+            );
+        }
+
+        function PeriodFilter({ periods, selected, onChange }) {
+            return (
+                <label className="block">
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Filtr miesiąca</span>
+                    <select value={selected} onChange={e => onChange(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2">
+                        <option value="ALL">Wszystkie</option>
+                        {periods.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                </label>
+            );
+        }
+
+        function PaymentLookup({ data, selectedPeriod, isTreasurer }) {
             const [journalNo, setJournalNo] = useState("");
             const [result, setResult] = useState(null);
-            const { currentPeriod } = data.settings || {};
+            const { currentPeriod, bank, currency } = data.settings || {};
+            const activePeriod = selectedPeriod && selectedPeriod !== 'ALL' ? selectedPeriod : currentPeriod;
 
             function onSearch(e) {
                 e.preventDefault();
@@ -151,52 +182,74 @@
             const statusBadge = (paid) => (
                 <span className={classNames(
                     'inline-flex items-center rounded-full px-2 py-1 text-xs font-medium',
-                    paid ? 'bg-green-100 text-green-800' : 'bg-rose-100 text-rose-800'
+                    paid ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200'
                 )}>
-                    {paid ? 'Opłacono' : 'Nieopłacono'}
+                    {paid ? '✅ Opłacono' : '❌ Nieopłacono'}
                 </span>
             );
 
+            function copyTransfer() {
+                if (!result) return;
+                const tpl = bank?.titleTemplate || 'Składka {period} – nr {journalNo}';
+                const title = tpl.replace('{period}', activePeriod || '').replace('{journalNo}', (result.journalNo || ''));
+                const lines = [
+                    `Odbiorca: ${bank?.accountName || ''}`,
+                    `IBAN: ${bank?.iban || ''}`,
+                    `Tytuł: ${title}`,
+                    bank?.amountHint ? `Kwota: ${currencyFmt(bank.amountHint, currency)}` : ''
+                ].filter(Boolean).join('
+');
+        navigator.clipboard?.writeText(lines).then(() => {
+                    alert('Dane przelewu skopiowane.');
+                }).catch(() => {
+                    prompt('Skopiuj ręcznie:', lines);
+                });
+            }
+
+            function periodStatus(payments, p) {
+                const rec = (payments || []).find(x => x.period === p);
+                return rec?.paid === true;
+            }
+
             return (
-                <div className="bg-white rounded-2xl shadow p-5">
-                    <h2 className="text-lg font-semibold mb-3">Sprawdź status składki</h2>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
+                    <h2 className="text-lg font-semibold mb-3">🔎 Sprawdź status składki</h2>
                     <form onSubmit={onSearch} className="flex gap-2 items-end flex-wrap">
                         <label className="flex flex-col">
-                            <span className="text-sm text-slate-600">Numer z dzienniczka</span>
-                            <input
-                                required
-                                inputMode="numeric"
-                                pattern="[0-9]+"
-                                placeholder="np. 12"
-                                className="mt-1 rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                value={journalNo}
-                                onChange={e => setJournalNo(e.target.value)}
-                            />
+                            <span className="text-sm text-slate-600 dark:text-slate-300">Numer z dzienniczka</span>
+                            <input required inputMode="numeric" pattern="[0-9]+" placeholder="np. 12" className="mt-1 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" value={journalNo} onChange={e => setJournalNo(e.target.value)} />
                         </label>
-                        <button className="rounded-xl bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 active:scale-[.99]">Sprawdź</button>
+                        <button className="rounded-xl bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 active:scale-[.99]">Szukaj</button>
                     </form>
 
                     {result && (
                         <div className="mt-4">
                             {result.notFound ? (
-                                <p className="text-sm text-slate-600">Nie znaleziono numeru <b>{journalNo}</b>. Sprawdź, czy wpisano poprawnie.</p>
+                                <p className="text-sm text-slate-600 dark:text-slate-300">Nie znaleziono numeru <b>{journalNo}</b>. Sprawdź, czy wpisano poprawnie.</p>
                             ) : (
                                 <div className="space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm text-slate-600">Bieżący okres:</span>
-                                        <span className="font-medium">{currentPeriod}</span>
+                                    <div className="flex items-center gap-2 text-sm">
+                                        <span className="text-slate-600 dark:text-slate-300">Okres:</span>
+                                        <span className="font-medium">{activePeriod}</span>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm text-slate-600">Status:</span>
-                                        {statusBadge((result.payments || []).find(p => p.period === currentPeriod)?.paid === true)}
+                                        <span className="text-sm text-slate-600 dark:text-slate-300">Status:</span>
+                                        {statusBadge(periodStatus(result.payments, activePeriod))}
+                                        {!periodStatus(result.payments, activePeriod) && (
+                                            <button type="button" onClick={copyTransfer} className="ml-2 text-xs rounded-lg border px-2 py-1 bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200">📋 Skopiuj dane przelewu</button>
+                                        )}
                                     </div>
-                                    <details className="rounded-xl border bg-slate-50 p-3">
+                                    <details className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3">
                                         <summary className="cursor-pointer text-sm font-medium">Historia wpłat</summary>
                                         <ul className="mt-2 text-sm">
                                             {(result.payments || []).map((p, idx) => (
-                                                <li key={idx} className="flex justify-between border-b last:border-0 py-1">
-                                                    <span className="text-slate-600">{p.period}</span>
-                                                    <span className="flex items-center gap-2">{statusBadge(!!p.paid)}{p.amount ? <em className="not-italic text-slate-600">{currencyFmt(p.amount, data.settings?.currency)}</em> : null}</span>
+                                                <li key={idx} className="flex justify-between border-b border-slate-200 dark:border-slate-700 last:border-0 py-1">
+                                                    <span className="text-slate-600 dark:text-slate-300">{p.period}</span>
+                                                    <span className="flex items-center gap-2">
+                                                        {statusBadge(!!p.paid)}
+                                                        {isTreasurer && p.amount ? <em className="not-italic text-slate-600 dark:text-slate-300">{currencyFmt(p.amount, data.settings?.currency)}</em> : null}
+                                                        {isTreasurer && p.date ? <span className="text-slate-500 text-xs">📅 {p.date}</span> : null}
+                                                    </span>
                                                 </li>
                                             ))}
                                         </ul>
@@ -209,8 +262,8 @@
             );
         }
 
-        function AccountSummary({ data }) {
-            const totals = useMemo(() => calcTotals(data), [data]);
+        function AccountSummary({ data, selectedPeriod }) {
+            const totals = useMemo(() => calcTotals(data, selectedPeriod), [data, selectedPeriod]);
             const currency = data.settings?.currency || 'PLN';
 
             const items = [
@@ -221,14 +274,14 @@
             ];
 
             return (
-                <div className="bg-white rounded-2xl shadow p-5">
-                    <h2 className="text-lg font-semibold mb-3">Stan konta</h2>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
+                    <h2 className="text-lg font-semibold mb-3">💼 Stan konta</h2>
                     <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {items.map((it, idx) => (
                             <div key={idx} className={classNames("rounded-xl p-3 border",
-                                it.highlight ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200')}
+                                it.highlight ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800' : 'bg-slate-50 border-slate-200 dark:bg-slate-900 dark:border-slate-700')}
                             >
-                                <dt className="text-sm text-slate-600">{it.label}</dt>
+                                <dt className="text-sm text-slate-600 dark:text-slate-300">{it.label}</dt>
                                 <dd className="text-lg font-semibold">{it.value}</dd>
                             </div>
                         ))}
@@ -237,21 +290,21 @@
             );
         }
 
-        function Expenses({ data }) {
+        function Expenses({ data, selectedPeriod }) {
             const currency = data.settings?.currency || 'PLN';
-            const rows = (data.expenses || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date));
+            const inRange = (d) => selectedPeriod === 'ALL' || !selectedPeriod ? true : (d || '').startsWith(selectedPeriod);
+            const rows = (data.expenses || []).filter(r => inRange(r.date)).slice().sort((a, b) => (a.date || '').localeCompare(b.date));
 
             return (
-                <div className="bg-white rounded-2xl shadow p-5">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
                     <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-lg font-semibold">Wydatki</h2>
-                        <span className="text-sm text-slate-600">Łącznie: {currencyFmt(rows.reduce((s, r) => s + Number(r.amount || 0), 0), currency)}</span>
+                        <h2 className="text-lg font-semibold">🧾 Wydatki</h2>
+                        <span className="text-sm text-slate-600 dark:text-slate-300">Łącznie: {currencyFmt(rows.reduce((s, r) => s + Number(r.amount || 0), 0), currency)}</span>
                     </div>
-
                     <div className="mt-3 overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
-                                <tr className="text-left text-slate-600 border-b">
+                                <tr className="text-left text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                                     <th className="py-2 pr-4">Data</th>
                                     <th className="py-2 pr-4">Tytuł</th>
                                     <th className="py-2 pr-4">Kwota</th>
@@ -260,11 +313,11 @@
                             </thead>
                             <tbody>
                                 {rows.map((r, idx) => (
-                                    <tr key={idx} className="border-b last:border-0">
+                                    <tr key={idx} className="border-b border-slate-200 dark:border-slate-700 last:border-0">
                                         <td className="py-2 pr-4 whitespace-nowrap">{r.date || '-'}</td>
                                         <td className="py-2 pr-4">{r.title || '-'}</td>
                                         <td className="py-2 pr-4 whitespace-nowrap">{currencyFmt(r.amount || 0, currency)}</td>
-                                        <td className="py-2">{r.receiptUrl ? <a target="_blank" rel="noopener noreferrer" href={r.receiptUrl} className="text-indigo-600 hover:underline">zobacz</a> : <span className="text-slate-400">—</span>}</td>
+                                        <td className="py-2">{r.receiptUrl ? <a target="_blank" rel="noopener noreferrer" href={r.receiptUrl} className="text-indigo-600 dark:text-indigo-300 hover:underline">zobacz</a> : <span className="text-slate-400">—</span>}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -274,21 +327,21 @@
             );
         }
 
-        function Income({ data }) {
+        function Income({ data, selectedPeriod }) {
             const currency = data.settings?.currency || 'PLN';
-            const rows = (data.income || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date));
+            const inRange = (d) => selectedPeriod === 'ALL' || !selectedPeriod ? true : (d || '').startsWith(selectedPeriod);
+            const rows = (data.income || []).filter(r => inRange(r.date)).slice().sort((a, b) => (a.date || '').localeCompare(b.date));
 
             return (
-                <div className="bg-white rounded-2xl shadow p-5">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
                     <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-lg font-semibold">Wpływy</h2>
-                        <span className="text-sm text-slate-600">Łącznie: {currencyFmt(rows.reduce((s, r) => s + Number(r.amount || 0), 0), currency)}</span>
+                        <h2 className="text-lg font-semibold">💰 Wpływy</h2>
+                        <span className="text-sm text-slate-600 dark:text-slate-300">Łącznie: {currencyFmt(rows.reduce((s, r) => s + Number(r.amount || 0), 0), currency)}</span>
                     </div>
-
                     <div className="mt-3 overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
-                                <tr className="text-left text-slate-600 border-b">
+                                <tr className="text-left text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                                     <th className="py-2 pr-4">Data</th>
                                     <th className="py-2 pr-4">Tytuł</th>
                                     <th className="py-2 pr-4">Kwota</th>
@@ -296,7 +349,7 @@
                             </thead>
                             <tbody>
                                 {rows.map((r, idx) => (
-                                    <tr key={idx} className="border-b last:border-0">
+                                    <tr key={idx} className="border-b border-slate-200 dark:border-slate-700 last:border-0">
                                         <td className="py-2 pr-4 whitespace-nowrap">{r.date || '-'}</td>
                                         <td className="py-2 pr-4">{r.title || '-'}</td>
                                         <td className="py-2 pr-4 whitespace-nowrap">{currencyFmt(r.amount || 0, currency)}</td>
@@ -309,16 +362,146 @@
             );
         }
 
-        function FooterNote() {
+        function PaymentsMatrix({ data, periods }) {
+            const mapPaid = new Map();
+            for (const s of (data.students || [])) {
+                const m = new Map();
+                for (const p of (s.payments || [])) m.set(p.period, !!p.paid);
+                mapPaid.set(s.journalNo, m);
+            }
+            const students = (data.students || []).slice().sort((a, b) => Number(a.journalNo) - Number(b.journalNo));
             return (
-                <p className="text-xs text-slate-500 text-center mt-8">
-                    Dane mają charakter informacyjny. Jeśli zauważysz błąd – daj znać wychowawcy / skarbnikowi grupy.
-                </p>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
+                    <h2 className="text-lg font-semibold mb-3">📋 Przegląd składek (✅/❌)</h2>
+                    <div className="mt-2 overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead>
+                                <tr className="text-left text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                                    <th className="py-2 pr-4 whitespace-nowrap">Nr dziennika</th>
+                                    {periods.map(p => <th key={p} className="py-2 pr-4 whitespace-nowrap">{p}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {students.map((s) => (
+                                    <tr key={s.journalNo} className="border-b border-slate-200 dark:border-slate-700 last:border-0">
+                                        <td className="py-2 pr-4 font-medium">{s.journalNo}</td>
+                                        {periods.map(p => {
+                                            const paid = mapPaid.get(s.journalNo)?.get(p) === true;
+                                            return <td key={p} className="py-2 pr-4">{paid ? '✅' : '❌'}</td>
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        }
+
+        function MonthlyBalance({ data }) {
+            // Historia salda miesięcznego (dla Skarbnika)
+            const currency = data.settings?.currency || 'PLN';
+            // Zbierz miesiące
+            const months = new Set();
+            for (const i of (data.income || [])) if (i.date) months.add(i.date.slice(0, 7));
+            for (const e of (data.expenses || [])) if (e.date) months.add(e.date.slice(0, 7));
+            const sorted = Array.from(months).sort();
+            // Oblicz per miesiąc
+            const rows = sorted.map(m => {
+                const inc = (data.income || []).filter(x => x.date?.startsWith(m)).reduce((s, x) => s + Number(x.amount || 0), 0);
+                const exp = (data.expenses || []).filter(x => x.date?.startsWith(m)).reduce((s, x) => s + Number(x.amount || 0), 0);
+                return { month: m, income: inc, expenses: exp, delta: inc - exp };
+            });
+            // Saldo narastająco (od openingBalance)
+            let running = Number(data.account?.openingBalance || 0);
+            const enriched = rows.map(r => { running += r.delta; return { ...r, balance: running }; });
+
+            return (
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
+                    <h2 className="text-lg font-semibold mb-3">📈 Historia salda (miesięcznie)</h2>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead>
+                                <tr className="text-left text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                                    <th className="py-2 pr-4">Miesiąc</th>
+                                    <th className="py-2 pr-4">Wpływy</th>
+                                    <th className="py-2 pr-4">Wydatki</th>
+                                    <th className="py-2 pr-4">Saldo końcowe</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {enriched.map((r) => (
+                                    <tr key={r.month} className="border-b border-slate-200 dark:border-slate-700 last:border-0">
+                                        <td className="py-2 pr-4">{r.month}</td>
+                                        <td className="py-2 pr-4">{currencyFmt(r.income, currency)}</td>
+                                        <td className="py-2 pr-4">{currencyFmt(r.expenses, currency)}</td>
+                                        <td className="py-2 pr-4 font-medium">{currencyFmt(r.balance, currency)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        }
+
+        function ReceiptsGallery({ data, selectedPeriod }) {
+            const items = (data.expenses || []).filter(e => e.receiptUrl && (selectedPeriod === 'ALL' || !selectedPeriod ? true : (e.date || '').startsWith(selectedPeriod)));
+            if (items.length === 0) return null;
+            return (
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
+                    <h2 className="text-lg font-semibold mb-3">🖼️ Paragony</h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {items.map((e, idx) => (
+                            <a key={idx} href={e.receiptUrl} target="_blank" rel="noopener noreferrer" className="group block rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                                <img src={e.receiptUrl} alt={e.title || 'Paragon'} className="aspect-[3/4] w-full object-cover group-hover:scale-[1.02] transition" />
+                                <div className="p-2 text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                                    <span className="line-clamp-1">{e.title || 'Paragon'}</span>
+                                    <span>{e.date || ''}</span>
+                                </div>
+                            </a>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        function TreasurerGate({ onUnlock }) {
+            const [pin, setPin] = useState('');
+            const [err, setErr] = useState('');
+            return (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
+                        <h3 className="text-lg font-semibold">🔒 Tryb Skarbnika</h3>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">Wpisz PIN, aby odblokować widok kwot/daty wpłat oraz narzędzia skarbnika.</p>
+                        <input value={pin} onChange={e => setPin(e.target.value)} type="password" inputMode="numeric" placeholder="PIN" className="mt-3 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2" />
+                        {err && <p className="mt-2 text-sm text-rose-600">{err}</p>}
+                        <div className="mt-4 flex gap-2 justify-end">
+                            <button onClick={() => onUnlock(null)} className="rounded-xl px-3 py-2 border">Anuluj</button>
+                            <button onClick={() => onUnlock(pin, setErr)} className="rounded-xl px-3 py-2 bg-indigo-600 text-white">Odblokuj</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function TreasurerBanner({ isOn, onLock }) {
+            if (!isOn) return null;
+            return (
+                <div className="rounded-2xl p-3 mb-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100 flex items-center justify-between">
+                    <div>🔓 <b>Tryb Skarbnika</b> – widoczne kwoty/daty dla wpłat dziecka + sekcje: Historia salda, Paragony.</div>
+                    <button onClick={onLock} className="text-sm underline">Zablokuj</button>
+                </div>
             );
         }
 
         function App() {
             const { data, loading } = useData();
+            const [selectedPeriod, setSelectedPeriod] = useState('ALL');
+            const [showPin, setShowPin] = useState(false);
+            const [isTreasurer, setIsTreasurer] = useState(() => {
+                try { return localStorage.getItem('pg_treasurer') === '1'; } catch (_) { return false; }
+            });
 
             if (loading) {
                 return (
@@ -329,30 +512,66 @@
             }
 
             const title = data.settings?.groupName ? `Finanse grupy – ${data.settings.groupName}` : 'Finanse grupy przedszkolnej';
+            const periods = extractAllPeriods(data);
+
+            function handleUnlock(pin, setErr) {
+                if (pin == null) { setShowPin(false); return; }
+                const ok = String(pin) === String(data.settings?.treasurerPin || '');
+                if (ok) {
+                    try { localStorage.setItem('pg_treasurer', '1'); } catch (_) { }
+                    setIsTreasurer(true);
+                    setShowPin(false);
+                } else {
+                    setErr && setErr('Nieprawidłowy PIN.');
+                }
+            }
+            function handleLock() {
+                try { localStorage.removeItem('pg_treasurer'); } catch (_) { }
+                setIsTreasurer(false);
+            }
 
             return (
                 <main className="max-w-6xl mx-auto p-4 md:p-6">
-                    <header className="mb-6">
-                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{title}</h1>
-                        <p className="text-slate-600 mt-1 text-sm">Podgląd salda, wpływów, wydatków oraz statusu składek po numerze z dzienniczka.</p>
-                    </header>
+                    <HeaderBar title={title} />
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 mb-4">
+                        <div className="lg:col-span-2">
+                            <AccountSummary data={data} selectedPeriod={selectedPeriod} />
+                        </div>
+                        <div className="space-y-2">
+                            <PeriodFilter periods={periods} selected={selectedPeriod} onChange={setSelectedPeriod} />
+                            <button onClick={() => setShowPin(true)} className="w-full rounded-xl border px-3 py-2 text-sm bg-white dark:bg-slate-800">{isTreasurer ? '🔓 Zmień PIN / ponownie zablokuj' : '🔒 Wejście do trybu Skarbnika'}</button>
+                        </div>
+                    </div>
+
+                    <TreasurerBanner isOn={isTreasurer} onLock={handleLock} />
 
                     <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
                         <div className="lg:col-span-2 space-y-4 lg:space-y-6">
-                            <AccountSummary data={data} />
-                            <Income data={data} />
-                            <Expenses data={data} />
+                            <Income data={data} selectedPeriod={selectedPeriod} />
+                            <Expenses data={data} selectedPeriod={selectedPeriod} />
+                            {isTreasurer && <MonthlyBalance data={data} />}
+                            {isTreasurer && <ReceiptsGallery data={data} selectedPeriod={selectedPeriod} />}
                         </div>
                         <div className="space-y-4 lg:space-y-6">
-                            <PaymentLookup data={data} />
-                            <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4">
+                            <PaymentLookup data={data} selectedPeriod={selectedPeriod} isTreasurer={isTreasurer} />
+                            <PaymentsMatrix data={data} periods={data.fees?.periods || []} />
+                            <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100 rounded-2xl p-4">
                                 <h3 className="font-semibold">Prywatność</h3>
-                                <p className="text-sm mt-1">Strona jest publiczna (GitHub Pages). Ujawniaj minimalny zakres danych (numer z dzienniczka + status). Jeśli potrzebujesz hasła – da się dodać prostą warstwę ochrony.</p>
+                                <ul className="text-sm mt-1 list-disc pl-5 space-y-1">
+                                    <li>Strona jest publiczna (GitHub Pages). Ujawniaj minimalny zakres danych.</li>
+                                    <li>Bez PINa <em>nie</em> pokazujemy kwot/dat wpłat per dziecko.</li>
+                                    <li>PIN nie jest super‑bezpieczny – do poufności użyj Staticrypt/Cloudflare Access.</li>
+                                </ul>
                             </div>
                         </div>
                     </section>
 
-                    <FooterNote />
+                    <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-8">
+                        Dane mają charakter informacyjny. Jeśli zauważysz błąd – daj znać wychowawcy / skarbnikowi grupy.
+                    </p>
+
+                    {showPin && <TreasurerGate onUnlock={handleUnlock} />}
                 </main>
             );
         }
