@@ -5,578 +5,277 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Finanse grupy przedszkolnej</title>
-    <!-- Tailwind (CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React (bez builda, przez CDN) -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <meta name="description"
-        content="Przejrzysty podgląd stanu konta, składek i wydatków grupy przedszkolnej. Dane trzymane w pliku data/data.json." />
+    <script>
+        // Tailwind dark mode support
+        if (
+            localStorage.getItem('theme') === 'dark' ||
+            (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        ) {
+            document.documentElement.classList.add('dark')
+        } else {
+            document.documentElement.classList.remove('dark')
+        }
+    </script>
     <style>
-        :focus-visible {
-            outline: 2px solid;
-            outline-offset: 2px;
+        :root {
+            color-scheme: light dark;
+        }
+
+        .glass {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        .glass-dark {
+            backdrop-filter: blur(10px);
+            background: rgba(17, 24, 39, 0.6);
         }
     </style>
-    <script>
-        // Dark mode – wstępne ustawienie zanim załaduje się JS
-        (function () {
-            const k = 'pg_dark';
-            try {
-                const pref = localStorage.getItem(k);
-                if (pref === '1' || (!pref && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                    document.documentElement.classList.add('dark');
-                }
-            } catch (_) { }
-        })();
-    </script>
 </head>
 
-<body class="h-full bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
-    <div id="root" class="min-h-screen"></div>
+<body class="h-full bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
+    <div id="app" class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header
+            class="sticky top-0 z-40 border-b border-gray-200/60 dark:border-gray-800/60 bg-white/70 dark:bg-gray-900/70 glass dark:glass-dark">
+            <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                        <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h11v2H3v-2zm0 4h11v2H3v-2zm0 4h18v2H3v-2z" />
+                    </svg>
+                    <h1 class="text-lg font-semibold">Finanse grupy</h1>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="darkToggle"
+                        class="px-3 py-1.5 text-sm rounded-xl border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <span class="inline dark:hidden">🌙 Tryb ciemny</span>
+                        <span class="hidden dark:inline">☀️ Tryb jasny</span>
+                    </button>
+                </div>
+            </div>
+        </header>
 
-    <!--
-  =========================================
-  🔧 INSTRUKCJA DLA CIEBIE (Jakub):
-  =========================================
-  1) index.html wrzuć do repo. Dane w data/data.json (patrz schemat poniżej).
-  2) Nowe funkcje: filtr miesiąca, matrix składek, kopiowanie danych przelewu,
-     historia salda (miesięczna), galeria paragonów, PIN dla trybu Skarbnika,
-     dark mode, ikonki i lepszy UX mobilny.
-  3) Uzupełnij settings w data.json o:
-     {
-       "groupName": "Pszczółki",
-       "currency": "PLN",
-       "currentPeriod": "2025-09",
-       "bank": {
-         "accountName": "Rada Rodziców Pszczółki",
-         "iban": "PL00 0000 0000 0000 0000 0000 0000",
-         "titleTemplate": "Składka {period} – nr {journalNo}"
-       },
-       "treasurerPin": "1234" // prosty PIN do trybu Skarbnika
-     }
-  4) Paragony – wrzucaj obrazy do receipts/... i linkuj w expenses[].
-  5) Prywatność: bez PINa nie pokazujemy kwot/dat dla dziecka ani narzędzi Skarbnika.
-  -->
+        <!-- Main -->
+        <main class="flex-1">
+            <section class="max-w-3xl mx-auto p-4">
+                <!-- Info cards -->
+                <div id="accountSummary"
+                    class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 opacity-0 transition-opacity"></div>
 
-    <script type="text/babel">
-        const { useEffect, useMemo, useState } = React;
-
-        // Fallback demo data (używane tylko jeśli nie znajdziemy data/data.json)
-        const DEMO_DATA = {
-            settings: {
-                groupName: "Pszczółki",
-                currency: "PLN",
-                currentPeriod: "2025-09",
-                bank: {
-                    accountName: "Rada Rodziców Pszczółki",
-                    iban: "PL00 0000 0000 0000 0000 0000 0000",
-                    titleTemplate: "Składka {period} – nr {journalNo}"
-                },
-                treasurerPin: "1234"
-            },
-            account: { openingBalance: 0 },
-            income: [{ date: "2025-09-05", title: "Wpłaty rodziców wrzesień", amount: 800 }],
-            expenses: [
-                { date: "2025-09-12", title: "Materiały plastyczne", amount: 120, receiptUrl: "#" },
-                { date: "2025-09-20", title: "Wycieczka autobus", amount: 240 }
-            ],
-            fees: { periods: ["2025-09", "2025-10"], perPeriodAmount: 50 },
-            students: [
-                { journalNo: "12", payments: [{ period: "2025-09", paid: true, amount: 50, date: "2025-09-08" }, { period: "2025-10", paid: false }] },
-                { journalNo: "27", payments: [{ period: "2025-09", paid: false }, { period: "2025-10", paid: false }] }
-            ]
-        };
-
-        function classNames(...arr) { return arr.filter(Boolean).join(' '); }
-
-        function useData() {
-            const [data, setData] = useState(null);
-            const [error, setError] = useState(null);
-            const [loading, setLoading] = useState(true);
-
-            useEffect(() => {
-                fetch('data/data.json', { cache: 'no-store' })
-                    .then(r => { if (!r.ok) throw new Error('Brak pliku data/data.json – używam danych DEMO'); return r.json(); })
-                    .then(json => setData(json))
-                    .catch(err => { console.warn(err); setError(err); setData(DEMO_DATA); })
-                    .finally(() => setLoading(false));
-            }, []);
-
-            return { data, error, loading };
-        }
-
-        function currencyFmt(n, currency) {
-            const v = Number(n || 0);
-            return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: currency || 'PLN', maximumFractionDigits: 2 }).format(v);
-        }
-
-        function calcTotals(data, periodFilter) {
-            const inRange = (d) => !periodFilter || periodFilter === 'ALL' || (d || '').startsWith(periodFilter);
-            const income = (data.income || []).filter(i => inRange(i.date)).reduce((s, i) => s + Number(i.amount || 0), 0);
-            const expenses = (data.expenses || []).filter(e => inRange(e.date)).reduce((s, e) => s + Number(e.amount || 0), 0);
-            const opening = periodFilter && periodFilter !== 'ALL' ? 0 : Number(data.account?.openingBalance || 0);
-            const balance = opening + income - expenses;
-            return { income, expenses, opening, balance };
-        }
-
-        function extractAllPeriods(data) {
-            const set = new Set([...(data.fees?.periods || [])]);
-            for (const i of (data.income || [])) if (i.date) set.add(i.date.slice(0, 7));
-            for (const e of (data.expenses || [])) if (e.date) set.add(e.date.slice(0, 7));
-            return Array.from(set).sort();
-        }
-
-        function DarkToggle() {
-            const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
-            function toggle() {
-                document.documentElement.classList.toggle('dark');
-                const on = document.documentElement.classList.contains('dark');
-                setIsDark(on);
-                try { localStorage.setItem('pg_dark', on ? '1' : '0'); } catch (_) { }
-            }
-            return (
-                <button onClick={toggle} className="rounded-xl border px-3 py-2 text-sm bg-white/60 dark:bg-slate-800/60">
-                    {isDark ? '🌙 Dark' : '☀️ Light'}
-                </button>
-            );
-        }
-
-        function HeaderBar({ title }) {
-            return (
-                <header className="mb-6 flex items-center justify-between gap-3">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{title}</h1>
-                        <p className="text-slate-600 dark:text-slate-300 mt-1 text-sm">Podgląd salda, wpływów, wydatków oraz statusu składek po numerze z dzienniczka.</p>
+                <!-- Search -->
+                <div class="mb-4">
+                    <label for="journalNo" class="block text-sm font-medium mb-1">Numer z dziennika</label>
+                    <div class="flex gap-2">
+                        <input id="journalNo" type="text" inputmode="numeric" placeholder="np. 12 lub A12"
+                            class="flex-1 rounded-xl px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800" />
+                        <button id="checkBtn"
+                            class="rounded-xl px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white">Sprawdź</button>
                     </div>
-                    <DarkToggle />
-                </header>
-            );
+                    <p class="text-xs text-gray-500 mt-2">Wpisz numer dziecka z dziennika, aby zobaczyć status opłat.
+                        Dane są anonimowe – brak imion i nazwisk.</p>
+                </div>
+
+                <!-- Result -->
+                <div id="result" class="space-y-4"></div>
+
+                <!-- Expenses list -->
+                <div id="expensesWrap" class="mt-8 hidden">
+                    <h2 class="text-base font-semibold mb-2">Wydatki (publiczne podsumowanie)</h2>
+                    <div id="expenses" class="space-y-2"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="border-t border-gray-200/60 dark:border-gray-800/60 py-4 text-center text-xs text-gray-500">
+            <div class="max-w-3xl mx-auto px-4">
+
+                <p>Przykładowa aplikacja statyczna. Dane są szyfrowane po stronie klienta i odblokowywane za pomocą
+                    PIN-u.</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- PIN Modal -->
+    <div id="pinModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div
+            class="w-full max-w-sm rounded-2xl p-6 shadow-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold mb-2">Podaj PIN, aby wczytać dane</h2>
+            <p class="text-sm text-gray-500 mb-4">To proste zabezpieczenie przed ciekawskimi. Nie wpisuj tu haseł
+                używanych gdzie indziej.</p>
+            <div class="space-y-3">
+                <input id="pinInput" type="password" inputmode="numeric" placeholder="PIN"
+                    class="w-full rounded-xl px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800" />
+                <button id="unlockBtn"
+                    class="w-full rounded-xl px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white">Odblokuj</button>
+                <p id="pinError" class="text-sm text-red-500 hidden">Nieprawidłowy PIN lub dane. Spróbuj ponownie.</p>
+            </div>
+            <p class="text-[11px] text-gray-500 mt-4">Uwaga: w statycznych stronach PIN to tylko utrudnienie dostępu.
+                Nie publikuj danych wrażliwych (imion, adresów, PESEL). Używaj samych numerów z dziennika i kwot.</p>
+        </div>
+    </div>
+
+    <script>
+        // ---- Utility: currency ----
+        const fmt = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' })
+
+        // ---- Theme toggle ----
+        document.getElementById('darkToggle').addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark')
+            localStorage.setItem('theme', isDark ? 'dark' : 'light')
+        })
+
+        // ---- Crypto helpers (WebCrypto) ----
+        async function deriveKey(pin, salt, iterations = 120000) {
+            const enc = new TextEncoder()
+            const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(pin), { name: 'PBKDF2' }, false, ['deriveKey'])
+            return crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+                keyMaterial,
+                { name: 'AES-GCM', length: 256 },
+                false,
+                ['decrypt']
+            )
         }
 
-        function PeriodFilter({ periods, selected, onChange }) {
-            return (
-                <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Filtr miesiąca</span>
-                    <select value={selected} onChange={e => onChange(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2">
-                        <option value="ALL">Wszystkie</option>
-                        {periods.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                </label>
-            );
+        async function decryptData(pin, payload) {
+            // payload: { salt: base64, iv: base64, ct: base64, iterations?: number }
+            const salt = Uint8Array.from(atob(payload.salt), c => c.charCodeAt(0))
+            const iv = Uint8Array.from(atob(payload.iv), c => c.charCodeAt(0))
+            const ct = Uint8Array.from(atob(payload.ct), c => c.charCodeAt(0))
+            const key = await deriveKey(pin, salt, payload.iterations || 120000)
+            const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct)
+            const txt = new TextDecoder().decode(new Uint8Array(pt))
+            return JSON.parse(txt)
         }
 
-        function PaymentLookup({ data, selectedPeriod, isTreasurer }) {
-            const [journalNo, setJournalNo] = useState("");
-            const [result, setResult] = useState(null);
-            const { currentPeriod, bank, currency } = data.settings || {};
-            const activePeriod = selectedPeriod && selectedPeriod !== 'ALL' ? selectedPeriod : currentPeriod;
+        // ---- State ----
+        let DATA = null // decrypted JSON
 
-            function onSearch(e) {
-                e.preventDefault();
-                const rec = (data.students || []).find(s => (s.journalNo || "").trim() === journalNo.trim());
-                setResult(rec || { notFound: true });
-            }
+        // ---- DOM refs ----
+        const pinModal = document.getElementById('pinModal')
+        const pinInput = document.getElementById('pinInput')
+        const unlockBtn = document.getElementById('unlockBtn')
+        const pinError = document.getElementById('pinError')
 
-            const statusBadge = (paid) => (
-                <span className={classNames(
-                    'inline-flex items-center rounded-full px-2 py-1 text-xs font-medium',
-                    paid ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200'
-                )}>
-                    {paid ? '✅ Opłacono' : '❌ Nieopłacono'}
-                </span>
-            );
+        const summaryEl = document.getElementById('accountSummary')
+        const resultEl = document.getElementById('result')
+        const expensesWrap = document.getElementById('expensesWrap')
+        const expensesEl = document.getElementById('expenses')
 
-            function copyTransfer() {
-                if (!result) return;
-                const tpl = bank?.titleTemplate || 'Składka {period} – nr {journalNo}';
-                const title = tpl.replace('{period}', activePeriod || '').replace('{journalNo}', (result.journalNo || ''));
-                const lines = [
-                    `Odbiorca: ${bank?.accountName || ''}`,
-                    `IBAN: ${bank?.iban || ''}`,
-                    `Tytuł: ${title}`,
-                    bank?.amountHint ? `Kwota: ${currencyFmt(bank.amountHint, currency)}` : ''
-                ].filter(Boolean).join('
-');
-        navigator.clipboard?.writeText(lines).then(() => {
-                    alert('Dane przelewu skopiowane.');
-                }).catch(() => {
-                    prompt('Skopiuj ręcznie:', lines);
-                });
+        // ---- Load encrypted payload ----
+        let ENCRYPTED_PAYLOAD = null
+        async function fetchEncrypted() {
+            // Place your encrypted file at ./data.enc.json
+            const res = await fetch('./data.enc.json', { cache: 'no-store' })
+            if (!res.ok) throw new Error('Nie można pobrać danych')
+            ENCRYPTED_PAYLOAD = await res.json()
+        }
+
+        // ---- Renderers ----
+        function renderSummary() {
+            const { account, fees } = DATA
+            summaryEl.innerHTML = `
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-800 shadow-sm">
+          <div class="text-xs text-gray-500">Stan konta</div>
+          <div class="text-2xl font-semibold">${fmt.format(account.balance)}</div>
+          <div class="text-xs text-gray-500 mt-1">Aktualizacja: ${account.lastUpdate}</div>
+        </div>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-800 shadow-sm">
+          <div class="text-xs text-gray-500">Bieżąca składka</div>
+          <div class="text-lg font-medium">${fees.currentPeriod} • ${fmt.format(fees.amountDue)}</div>
+          <div class="text-xs text-gray-500 mt-1">${fees.description || ''}</div>
+        </div>`
+            summaryEl.style.opacity = 1
+        }
+
+        function renderChildStatus(entry) {
+            resultEl.innerHTML = ''
+            if (!entry) {
+                resultEl.innerHTML = `<div class="rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-950/30 dark:text-amber-100 p-4">
+          Nie znaleziono takiego numeru. Sprawdź wpis.
+        </div>`
+                return
             }
 
-            function periodStatus(payments, p) {
-                const rec = (payments || []).find(x => x.period === p);
-                return rec?.paid === true;
+            const paidBadge = entry.paid
+                ? `<span class="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">OPŁACONO</span>`
+                : `<span class="px-2 py-0.5 text-xs rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200">DO ZAPŁATY</span>`
+
+            const allocations = (entry.allocations || [])
+                .map(a => `<div class="flex justify-between text-sm"><span>${a.purpose}</span><span>${fmt.format(a.amount)}</span></div>`)
+                .join('') || '<div class="text-sm text-gray-500">Brak alokacji</div>'
+
+            const receipts = (entry.receipts || [])
+                .map(url => `<a class="text-blue-600 dark:text-blue-400 underline" href="${url}" target="_blank" rel="noreferrer">Paragon</a>`)
+                .join(' · ') || '<span class="text-gray-500">Brak paragonów</span>'
+
+            const dueInfo = entry.paid
+                ? `<div class="text-sm text-gray-500">Zapłacono: <strong>${fmt.format(entry.amountPaid || 0)}</strong> ${entry.paidOn ? `(${entry.paidOn})` : ''}</div>`
+                : `<div class="text-sm text-gray-500">Do zapłaty: <strong>${fmt.format((DATA.fees?.amountDue || 0) - (entry.amountPaid || 0))}</strong></div>`
+
+            resultEl.innerHTML = `
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-800 shadow-sm">
+          <div class="flex items-center justify-between">
+            <div class="text-base font-semibold">Numer: ${entry.journalNo}</div>
+            ${paidBadge}
+          </div>
+          <div class="mt-2 space-y-1">
+            ${dueInfo}
+            <div class="text-sm">Na co przeznaczono / przeznaczy się środki:</div>
+            <div class="mt-1 space-y-0.5">${allocations}</div>
+            <div class="mt-2 text-sm">Paragony: ${receipts}</div>
+          </div>
+        </div>`
+        }
+
+        function renderExpenses() {
+            const items = DATA.expenses || []
+            if (!items.length) { expensesWrap.classList.add('hidden'); return }
+            expensesWrap.classList.remove('hidden')
+            expensesEl.innerHTML = items.map(e => `
+        <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-3 bg-white dark:bg-gray-800">
+          <div class="flex items-center justify-between text-sm">
+            <div class="font-medium">${e.purpose}</div>
+            <div>${fmt.format(e.amount)}</div>
+          </div>
+          <div class="text-xs text-gray-500">${e.date || ''}</div>
+          ${e.receipt ? `<a class=\"text-xs text-blue-600 dark:text-blue-400 underline\" href=\"${e.receipt}\" target=\"_blank\" rel=\"noreferrer\">Paragon</a>` : ''}
+        </div>`).join('')
+        }
+
+        // ---- Events ----
+        document.getElementById('checkBtn').addEventListener('click', () => {
+            const val = (document.getElementById('journalNo').value || '').trim()
+            if (!val) return
+            const entry = (DATA.entries || []).find(e => (e.journalNo + '').toLowerCase() === val.toLowerCase())
+            renderChildStatus(entry)
+        })
+
+        // Enter on PIN or on search
+        pinInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlockBtn.click() })
+        document.getElementById('journalNo').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('checkBtn').click() })
+
+        unlockBtn.addEventListener('click', async () => {
+            pinError.classList.add('hidden')
+            const pin = pinInput.value
+            if (!pin) return
+            try {
+                if (!ENCRYPTED_PAYLOAD) await fetchEncrypted()
+                DATA = await decryptData(pin, ENCRYPTED_PAYLOAD)
+                pinModal.remove()
+                renderSummary()
+                renderExpenses()
+            } catch (e) {
+                console.error(e)
+                pinError.classList.remove('hidden')
             }
+        })
 
-            return (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
-                    <h2 className="text-lg font-semibold mb-3">🔎 Sprawdź status składki</h2>
-                    <form onSubmit={onSearch} className="flex gap-2 items-end flex-wrap">
-                        <label className="flex flex-col">
-                            <span className="text-sm text-slate-600 dark:text-slate-300">Numer z dzienniczka</span>
-                            <input required inputMode="numeric" pattern="[0-9]+" placeholder="np. 12" className="mt-1 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" value={journalNo} onChange={e => setJournalNo(e.target.value)} />
-                        </label>
-                        <button className="rounded-xl bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 active:scale-[.99]">Szukaj</button>
-                    </form>
+        // Optional: auto-focus
+        setTimeout(() => pinInput.focus(), 100)
 
-                    {result && (
-                        <div className="mt-4">
-                            {result.notFound ? (
-                                <p className="text-sm text-slate-600 dark:text-slate-300">Nie znaleziono numeru <b>{journalNo}</b>. Sprawdź, czy wpisano poprawnie.</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <span className="text-slate-600 dark:text-slate-300">Okres:</span>
-                                        <span className="font-medium">{activePeriod}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm text-slate-600 dark:text-slate-300">Status:</span>
-                                        {statusBadge(periodStatus(result.payments, activePeriod))}
-                                        {!periodStatus(result.payments, activePeriod) && (
-                                            <button type="button" onClick={copyTransfer} className="ml-2 text-xs rounded-lg border px-2 py-1 bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200">📋 Skopiuj dane przelewu</button>
-                                        )}
-                                    </div>
-                                    <details className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3">
-                                        <summary className="cursor-pointer text-sm font-medium">Historia wpłat</summary>
-                                        <ul className="mt-2 text-sm">
-                                            {(result.payments || []).map((p, idx) => (
-                                                <li key={idx} className="flex justify-between border-b border-slate-200 dark:border-slate-700 last:border-0 py-1">
-                                                    <span className="text-slate-600 dark:text-slate-300">{p.period}</span>
-                                                    <span className="flex items-center gap-2">
-                                                        {statusBadge(!!p.paid)}
-                                                        {isTreasurer && p.amount ? <em className="not-italic text-slate-600 dark:text-slate-300">{currencyFmt(p.amount, data.settings?.currency)}</em> : null}
-                                                        {isTreasurer && p.date ? <span className="text-slate-500 text-xs">📅 {p.date}</span> : null}
-                                                    </span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </details>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        function AccountSummary({ data, selectedPeriod }) {
-            const totals = useMemo(() => calcTotals(data, selectedPeriod), [data, selectedPeriod]);
-            const currency = data.settings?.currency || 'PLN';
-
-            const items = [
-                { label: 'Saldo otwarcia', value: currencyFmt(totals.opening, currency) },
-                { label: 'Suma wpływów', value: currencyFmt(totals.income, currency) },
-                { label: 'Suma wydatków', value: currencyFmt(totals.expenses, currency) },
-                { label: 'Bieżące saldo', value: currencyFmt(totals.balance, currency), highlight: true },
-            ];
-
-            return (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
-                    <h2 className="text-lg font-semibold mb-3">💼 Stan konta</h2>
-                    <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {items.map((it, idx) => (
-                            <div key={idx} className={classNames("rounded-xl p-3 border",
-                                it.highlight ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800' : 'bg-slate-50 border-slate-200 dark:bg-slate-900 dark:border-slate-700')}
-                            >
-                                <dt className="text-sm text-slate-600 dark:text-slate-300">{it.label}</dt>
-                                <dd className="text-lg font-semibold">{it.value}</dd>
-                            </div>
-                        ))}
-                    </dl>
-                </div>
-            );
-        }
-
-        function Expenses({ data, selectedPeriod }) {
-            const currency = data.settings?.currency || 'PLN';
-            const inRange = (d) => selectedPeriod === 'ALL' || !selectedPeriod ? true : (d || '').startsWith(selectedPeriod);
-            const rows = (data.expenses || []).filter(r => inRange(r.date)).slice().sort((a, b) => (a.date || '').localeCompare(b.date));
-
-            return (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
-                    <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-lg font-semibold">🧾 Wydatki</h2>
-                        <span className="text-sm text-slate-600 dark:text-slate-300">Łącznie: {currencyFmt(rows.reduce((s, r) => s + Number(r.amount || 0), 0), currency)}</span>
-                    </div>
-                    <div className="mt-3 overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="text-left text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
-                                    <th className="py-2 pr-4">Data</th>
-                                    <th className="py-2 pr-4">Tytuł</th>
-                                    <th className="py-2 pr-4">Kwota</th>
-                                    <th className="py-2">Paragon</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.map((r, idx) => (
-                                    <tr key={idx} className="border-b border-slate-200 dark:border-slate-700 last:border-0">
-                                        <td className="py-2 pr-4 whitespace-nowrap">{r.date || '-'}</td>
-                                        <td className="py-2 pr-4">{r.title || '-'}</td>
-                                        <td className="py-2 pr-4 whitespace-nowrap">{currencyFmt(r.amount || 0, currency)}</td>
-                                        <td className="py-2">{r.receiptUrl ? <a target="_blank" rel="noopener noreferrer" href={r.receiptUrl} className="text-indigo-600 dark:text-indigo-300 hover:underline">zobacz</a> : <span className="text-slate-400">—</span>}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            );
-        }
-
-        function Income({ data, selectedPeriod }) {
-            const currency = data.settings?.currency || 'PLN';
-            const inRange = (d) => selectedPeriod === 'ALL' || !selectedPeriod ? true : (d || '').startsWith(selectedPeriod);
-            const rows = (data.income || []).filter(r => inRange(r.date)).slice().sort((a, b) => (a.date || '').localeCompare(b.date));
-
-            return (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
-                    <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-lg font-semibold">💰 Wpływy</h2>
-                        <span className="text-sm text-slate-600 dark:text-slate-300">Łącznie: {currencyFmt(rows.reduce((s, r) => s + Number(r.amount || 0), 0), currency)}</span>
-                    </div>
-                    <div className="mt-3 overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="text-left text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
-                                    <th className="py-2 pr-4">Data</th>
-                                    <th className="py-2 pr-4">Tytuł</th>
-                                    <th className="py-2 pr-4">Kwota</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.map((r, idx) => (
-                                    <tr key={idx} className="border-b border-slate-200 dark:border-slate-700 last:border-0">
-                                        <td className="py-2 pr-4 whitespace-nowrap">{r.date || '-'}</td>
-                                        <td className="py-2 pr-4">{r.title || '-'}</td>
-                                        <td className="py-2 pr-4 whitespace-nowrap">{currencyFmt(r.amount || 0, currency)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            );
-        }
-
-        function PaymentsMatrix({ data, periods }) {
-            const mapPaid = new Map();
-            for (const s of (data.students || [])) {
-                const m = new Map();
-                for (const p of (s.payments || [])) m.set(p.period, !!p.paid);
-                mapPaid.set(s.journalNo, m);
-            }
-            const students = (data.students || []).slice().sort((a, b) => Number(a.journalNo) - Number(b.journalNo));
-            return (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
-                    <h2 className="text-lg font-semibold mb-3">📋 Przegląd składek (✅/❌)</h2>
-                    <div className="mt-2 overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="text-left text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
-                                    <th className="py-2 pr-4 whitespace-nowrap">Nr dziennika</th>
-                                    {periods.map(p => <th key={p} className="py-2 pr-4 whitespace-nowrap">{p}</th>)}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {students.map((s) => (
-                                    <tr key={s.journalNo} className="border-b border-slate-200 dark:border-slate-700 last:border-0">
-                                        <td className="py-2 pr-4 font-medium">{s.journalNo}</td>
-                                        {periods.map(p => {
-                                            const paid = mapPaid.get(s.journalNo)?.get(p) === true;
-                                            return <td key={p} className="py-2 pr-4">{paid ? '✅' : '❌'}</td>
-                                        })}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            );
-        }
-
-        function MonthlyBalance({ data }) {
-            // Historia salda miesięcznego (dla Skarbnika)
-            const currency = data.settings?.currency || 'PLN';
-            // Zbierz miesiące
-            const months = new Set();
-            for (const i of (data.income || [])) if (i.date) months.add(i.date.slice(0, 7));
-            for (const e of (data.expenses || [])) if (e.date) months.add(e.date.slice(0, 7));
-            const sorted = Array.from(months).sort();
-            // Oblicz per miesiąc
-            const rows = sorted.map(m => {
-                const inc = (data.income || []).filter(x => x.date?.startsWith(m)).reduce((s, x) => s + Number(x.amount || 0), 0);
-                const exp = (data.expenses || []).filter(x => x.date?.startsWith(m)).reduce((s, x) => s + Number(x.amount || 0), 0);
-                return { month: m, income: inc, expenses: exp, delta: inc - exp };
-            });
-            // Saldo narastająco (od openingBalance)
-            let running = Number(data.account?.openingBalance || 0);
-            const enriched = rows.map(r => { running += r.delta; return { ...r, balance: running }; });
-
-            return (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
-                    <h2 className="text-lg font-semibold mb-3">📈 Historia salda (miesięcznie)</h2>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="text-left text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
-                                    <th className="py-2 pr-4">Miesiąc</th>
-                                    <th className="py-2 pr-4">Wpływy</th>
-                                    <th className="py-2 pr-4">Wydatki</th>
-                                    <th className="py-2 pr-4">Saldo końcowe</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {enriched.map((r) => (
-                                    <tr key={r.month} className="border-b border-slate-200 dark:border-slate-700 last:border-0">
-                                        <td className="py-2 pr-4">{r.month}</td>
-                                        <td className="py-2 pr-4">{currencyFmt(r.income, currency)}</td>
-                                        <td className="py-2 pr-4">{currencyFmt(r.expenses, currency)}</td>
-                                        <td className="py-2 pr-4 font-medium">{currencyFmt(r.balance, currency)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            );
-        }
-
-        function ReceiptsGallery({ data, selectedPeriod }) {
-            const items = (data.expenses || []).filter(e => e.receiptUrl && (selectedPeriod === 'ALL' || !selectedPeriod ? true : (e.date || '').startsWith(selectedPeriod)));
-            if (items.length === 0) return null;
-            return (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
-                    <h2 className="text-lg font-semibold mb-3">🖼️ Paragony</h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                        {items.map((e, idx) => (
-                            <a key={idx} href={e.receiptUrl} target="_blank" rel="noopener noreferrer" className="group block rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
-                                <img src={e.receiptUrl} alt={e.title || 'Paragon'} className="aspect-[3/4] w-full object-cover group-hover:scale-[1.02] transition" />
-                                <div className="p-2 text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                                    <span className="line-clamp-1">{e.title || 'Paragon'}</span>
-                                    <span>{e.date || ''}</span>
-                                </div>
-                            </a>
-                        ))}
-                    </div>
-                </div>
-            );
-        }
-
-        function TreasurerGate({ onUnlock }) {
-            const [pin, setPin] = useState('');
-            const [err, setErr] = useState('');
-            return (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-2xl shadow p-5">
-                        <h3 className="text-lg font-semibold">🔒 Tryb Skarbnika</h3>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">Wpisz PIN, aby odblokować widok kwot/daty wpłat oraz narzędzia skarbnika.</p>
-                        <input value={pin} onChange={e => setPin(e.target.value)} type="password" inputMode="numeric" placeholder="PIN" className="mt-3 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2" />
-                        {err && <p className="mt-2 text-sm text-rose-600">{err}</p>}
-                        <div className="mt-4 flex gap-2 justify-end">
-                            <button onClick={() => onUnlock(null)} className="rounded-xl px-3 py-2 border">Anuluj</button>
-                            <button onClick={() => onUnlock(pin, setErr)} className="rounded-xl px-3 py-2 bg-indigo-600 text-white">Odblokuj</button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        function TreasurerBanner({ isOn, onLock }) {
-            if (!isOn) return null;
-            return (
-                <div className="rounded-2xl p-3 mb-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100 flex items-center justify-between">
-                    <div>🔓 <b>Tryb Skarbnika</b> – widoczne kwoty/daty dla wpłat dziecka + sekcje: Historia salda, Paragony.</div>
-                    <button onClick={onLock} className="text-sm underline">Zablokuj</button>
-                </div>
-            );
-        }
-
-        function App() {
-            const { data, loading } = useData();
-            const [selectedPeriod, setSelectedPeriod] = useState('ALL');
-            const [showPin, setShowPin] = useState(false);
-            const [isTreasurer, setIsTreasurer] = useState(() => {
-                try { return localStorage.getItem('pg_treasurer') === '1'; } catch (_) { return false; }
-            });
-
-            if (loading) {
-                return (
-                    <div className="flex items-center justify-center min-h-screen">
-                        <div className="animate-pulse text-slate-500">Wczytywanie…</div>
-                    </div>
-                );
-            }
-
-            const title = data.settings?.groupName ? `Finanse grupy – ${data.settings.groupName}` : 'Finanse grupy przedszkolnej';
-            const periods = extractAllPeriods(data);
-
-            function handleUnlock(pin, setErr) {
-                if (pin == null) { setShowPin(false); return; }
-                const ok = String(pin) === String(data.settings?.treasurerPin || '');
-                if (ok) {
-                    try { localStorage.setItem('pg_treasurer', '1'); } catch (_) { }
-                    setIsTreasurer(true);
-                    setShowPin(false);
-                } else {
-                    setErr && setErr('Nieprawidłowy PIN.');
-                }
-            }
-            function handleLock() {
-                try { localStorage.removeItem('pg_treasurer'); } catch (_) { }
-                setIsTreasurer(false);
-            }
-
-            return (
-                <main className="max-w-6xl mx-auto p-4 md:p-6">
-                    <HeaderBar title={title} />
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 mb-4">
-                        <div className="lg:col-span-2">
-                            <AccountSummary data={data} selectedPeriod={selectedPeriod} />
-                        </div>
-                        <div className="space-y-2">
-                            <PeriodFilter periods={periods} selected={selectedPeriod} onChange={setSelectedPeriod} />
-                            <button onClick={() => setShowPin(true)} className="w-full rounded-xl border px-3 py-2 text-sm bg-white dark:bg-slate-800">{isTreasurer ? '🔓 Zmień PIN / ponownie zablokuj' : '🔒 Wejście do trybu Skarbnika'}</button>
-                        </div>
-                    </div>
-
-                    <TreasurerBanner isOn={isTreasurer} onLock={handleLock} />
-
-                    <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
-                        <div className="lg:col-span-2 space-y-4 lg:space-y-6">
-                            <Income data={data} selectedPeriod={selectedPeriod} />
-                            <Expenses data={data} selectedPeriod={selectedPeriod} />
-                            {isTreasurer && <MonthlyBalance data={data} />}
-                            {isTreasurer && <ReceiptsGallery data={data} selectedPeriod={selectedPeriod} />}
-                        </div>
-                        <div className="space-y-4 lg:space-y-6">
-                            <PaymentLookup data={data} selectedPeriod={selectedPeriod} isTreasurer={isTreasurer} />
-                            <PaymentsMatrix data={data} periods={data.fees?.periods || []} />
-                            <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100 rounded-2xl p-4">
-                                <h3 className="font-semibold">Prywatność</h3>
-                                <ul className="text-sm mt-1 list-disc pl-5 space-y-1">
-                                    <li>Strona jest publiczna (GitHub Pages). Ujawniaj minimalny zakres danych.</li>
-                                    <li>Bez PINa <em>nie</em> pokazujemy kwot/dat wpłat per dziecko.</li>
-                                    <li>PIN nie jest super‑bezpieczny – do poufności użyj Staticrypt/Cloudflare Access.</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </section>
-
-                    <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-8">
-                        Dane mają charakter informacyjny. Jeśli zauważysz błąd – daj znać wychowawcy / skarbnikowi grupy.
-                    </p>
-
-                    {showPin && <TreasurerGate onUnlock={handleUnlock} />}
-                </main>
-            );
-        }
-
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
 
