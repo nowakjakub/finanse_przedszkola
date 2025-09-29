@@ -77,11 +77,6 @@
           <div class="collection">
             <h3>${escapeHtml(c.name)} ${c.status === 'open' ? '<span class="badge ok">otwarta</span>' : '<span class="badge">zamknięta</span>'}</h3>
             <div class="meta">Składka: <strong>${PLN(c.amount)}</strong> • Opłacone: <strong>${c.paidCount}/${totalChildren}</strong> (${pct}%) • Zebrano: <strong>${PLN(c.collected)}</strong></div>
-            <details>
-              <summary>Pokaż numery</summary>
-              <p><strong>Wpłacili:</strong> ${c.paid.length ? c.paid.join(', ') : '—'}</p>
-              <p><strong>Brak wpłaty:</strong> ${c.unpaidNumbers.length ? c.unpaidNumbers.join(', ') : '—'}</p>
-            </details>
           </div>`;
             };
 

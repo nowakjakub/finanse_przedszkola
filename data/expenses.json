@@ -2,15 +2,15 @@
     "expenses": [
         {
             "date": "2025-09-20",
-            "what": "Balony na Dzień Przedszkolaka",
-            "amount": 45.99,
-            "receipt_note": "Paragon u skarbnika — dołączyć po rozliczeniu"
+            "what": "Przykladowy wydatek",
+            "amount": 0.00,
+            "receipt_note": "Paragon zostałby dołaczony później"
         },
         {
             "date": "2025-09-10",
-            "what": "Kredki i blok techniczny",
-            "amount": 120.00,
-            "receipt": "receipts/2025-09-10-kredki.pdf"
+            "what": "Kaczuszki - kliknij!",
+            "amount": 0.00,
+            "receipt": "receipts/rubber-duck-scaled.jpg"
         }
     ]
 }
