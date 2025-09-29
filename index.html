@@ -1,441 +1,84 @@
 <!doctype html>
-<html lang="pl" data-theme="light">
+<html lang="pl">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Składki przedszkolne – status wpłat</title>
-    <meta name="description"
-        content="Sprawdź stan konta grupy, bieżące i poprzednie zbiórki, wydatki oraz swój status wpłaty po numerku." />
-    <style>
-        :root {
-            --radius: 16px;
-            --gap: 14px;
-            --shadow: 0 6px 20px rgba(0, 0, 0, .25);
-        }
-
-        /* Theme variables */
-        html[data-theme="dark"] {
-            --bg: #0b0b0b;
-            --card-bg: #121212;
-            --surface: #0f172a;
-            --text: #eaeaea;
-            --muted: #bdbdbd;
-            --accent: #6ee7b7;
-            --danger: #f87171;
-            --warn: #fbbf24;
-            --link: #93c5fd;
-        }
-
-        html[data-theme="light"] {
-            --bg: #f6f7fb;
-            --card-bg: #ffffff;
-            --surface: #ffffff;
-            --text: #0b0b0b;
-            --muted: #4b5563;
-            --accent: #059669;
-            --danger: #b91c1c;
-            --warn: #b45309;
-            --link: #1d4ed8;
-        }
-
-        html,
-        body {
-            margin: 0;
-            padding: 0;
-            background: var(--bg);
-            color: var(--text);
-            font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px
-        }
-
-        .grid {
-            display: grid;
-            gap: var(--gap)
-        }
-
-        @media(min-width:720px) {
-            .grid.cols-2 {
-                grid-template-columns: 1fr 1fr
-            }
-        }
-
-        .card {
-            background: var(--card-bg);
-            border-radius: var(--radius);
-            padding: 18px;
-            box-shadow: var(--shadow)
-        }
-
-        .row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap
-        }
-
-        .space {
-            flex: 1
-        }
-
-        .kpi {
-            font-size: 28px;
-            font-weight: 700
-        }
-
-        .muted {
-            color: var(--muted)
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 999px;
-            font-size: 12px;
-            background: #1f2937;
-            color: #e5e7eb
-        }
-
-        .badge.accent {
-            background: rgba(110, 231, 183, .15);
-            color: var(--accent);
-            border: 1px solid rgba(110, 231, 183, .35)
-        }
-
-        .badge.warn {
-            background: rgba(251, 191, 36, .12);
-            color: var(--warn);
-            border: 1px solid rgba(251, 191, 36, .32)
-        }
-
-        .badge.danger {
-            background: rgba(248, 113, 113, .12);
-            color: var(--danger);
-            border: 1px solid rgba(248, 113, 113, .32)
-        }
-
-        a {
-            color: var(--link);
-            text-decoration: none
-        }
-
-        a:hover {
-            text-decoration: underline
-        }
-
-        input[type="number"],
-        input[type="search"] {
-            background: var(--surface);
-            color: var(--text);
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 10px 12px;
-            width: 100%
-        }
-
-        button {
-            border: 0;
-            border-radius: 12px;
-            padding: 10px 14px;
-            background: #1f2937;
-            color: #e5e7eb;
-            cursor: pointer
-        }
-
-        button.primary {
-            background: var(--accent);
-            color: #0b0b0b;
-            font-weight: 700
-        }
-
-        .list {
-            display: grid;
-            gap: 10px
-        }
-
-        .item {
-            padding: 12px;
-            border: 1px solid #334155;
-            border-radius: 12px;
-            background: var(--surface)
-        }
-
-        .item .title {
-            font-weight: 600
-        }
-
-        .mono {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace
-        }
-
-        .right {
-            text-align: right
-        }
-
-        .footer {
-            margin-top: 30px;
-            color: var(--muted);
-            font-size: 13px
-        }
-
-        .toggle {
-            background: var(--surface);
-            border: 1px solid #374151
-        }
-    </style>
+    <title>Składki grupy – podgląd wpłat</title>
+    <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body>
-    <div class="container grid" style="gap:22px">
-        <header class="row">
-            <h1 style="margin:0">Składki Kaczuszek</h1>
-            <div class="space"></div>
-            <button id="themeBtn" class="toggle" aria-label="Przełącz motyw">🌗 Motyw</button>
-        </header>
+    <header class="topbar">
+        <div>
+            <h1 id="site-title">Składki grupy</h1>
+            <p class="subtitle">Podgląd wpłat, wydatków i danych do przelewu</p>
+        </div>
+        <button id="theme-toggle" aria-label="Przełącz motyw" title="Przełącz motyw">🌙</button>
+    </header>
 
-        <section class="grid cols-2">
-            <div class="card">
-                <div class="row"><strong>Stan konta (łącznie)</strong><span class="space"></span><span id="updated"
-                        class="muted"></span></div>
-                <div class="kpi" id="totalBalance"></div>
-                <div class="muted" id="sourcesHint"></div>
+    <main class="container">
+        <section class="card" id="balance-card">
+            <h2>Stan konta</h2>
+            <div id="balance-summary" class="balance"></div>
+            <details>
+                <summary>Jak liczymy?</summary>
+                <ul id="balance-breakdown"></ul>
+            </details>
+        </section>
+
+        <section class="grid-two">
+            <article class="card" id="current-collections">
+                <h2>Aktualne zbiórki</h2>
+                <div id="current-list"></div>
+            </article>
+            <article class="card" id="past-collections">
+                <h2>Poprzednie zbiórki</h2>
+                <div id="past-list"></div>
+            </article>
+        </section>
+
+        <section class="card" id="search-card">
+            <h2>Sprawdź numer dziecka</h2>
+            <form id="lookup-form">
+                <label for="child-number">Numer z dziennika (1–25):</label>
+                <input id="child-number" name="child-number" type="number" min="1" max="25" required />
+                <button type="submit">Sprawdź</button>
+            </form>
+            <div id="lookup-result" class="lookup"></div>
+            <p class="hint">Uwaga: zamknięte zbiórki są pomijane przy zaległościach.</p>
+        </section>
+
+        <section class="card" id="banking">
+            <h2>Dane do przelewu</h2>
+            <div id="banking-data"></div>
+        </section>
+
+        <section class="card" id="expenses">
+            <h2>Wydatki</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Opis</th>
+                            <th>Kwota</th>
+                            <th>Paragon</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expenses-body"></tbody>
+                </table>
             </div>
-            <div class="card" id="currentSection">
-                <div class="row">
-                    <strong>Bieżące zbiórki</strong>
-                </div>
-                <div id="currentList" class="list" style="margin-top:12px; overflow-x:auto;"></div>
-                <div id="currentName" class="title"></div>
-                <div class="space"></div>
-                <div class="right">
-                    <div class="muted"></div>
-                    <div id="currentCollected" class="title"></div>
-                </div>
-                <div class="muted" id="currentMeta"></div>
-            </div>
         </section>
 
-        <section class="card">
-            <div class="row"><strong>Sprawdź swój status</strong><span class="muted">(numer z dziennika 1–25)</span>
-            </div>
-            <div class="row" style="margin-top:10px; gap:10px">
-                <input id="numInput" type="number" min="1" max="25" placeholder="Wpisz numer (1–25) i naciśnij Enter" />
-                <button id="checkBtn" class="primary">Sprawdź</button>
-            </div>
-            <div id="checkResult" style="margin-top:12px"></div>
-        </section>
+    </main>
 
-        <section class="card">
-            <div class="row"><strong>Poprzednie zbiórki</strong></div>
-            <div id="prevCollections" class="list" style="margin-top:12px"></div>
-        </section>
+    <footer class="footer">
+        <small>Aktualizacje danych: pliki JSON w katalogu <code>/data</code>. Strona działa w 100% statycznie na GitHub
+            Pages.</small>
+    </footer>
 
-        <section class="card">
-            <div class="row"><strong>Wydatki</strong><span class="muted">(najnowsze → najstarsze)</span></div>
-            <div id="expenses" class="list" style="margin-top:12px"></div>
-        </section>
-
-        <section class="card">
-            <div class="row"><strong>Jak wpłacić</strong></div>
-            <div id="payInfo" style="margin-top:8px"></div>
-        </section>
-    </div>
-
-    <script>
-        (function () {
-            // Theme handling
-            const themeBtn = document.getElementById('themeBtn');
-            const applyTheme = (mode) => { document.documentElement.setAttribute('data-theme', mode); localStorage.setItem('theme', mode); }
-            applyTheme(localStorage.getItem('theme') || 'light');
-            themeBtn.addEventListener('click', () => { const cur = document.documentElement.getAttribute('data-theme'); applyTheme(cur === 'dark' ? 'light' : 'dark'); });
-
-            const PLN = (n) => new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN', minimumFractionDigits: 2 }).format(n);
-            const el = (id) => document.getElementById(id);
-
-            // Fetch and decode data.enc.json { enc: base64(json) }
-            fetch('data.enc.json', { cache: 'no-store' })
-                .then(r => r.json())
-                .then(enc => {
-                    // UTF-8 safe base64 decode (fixes mojibake like "Klasowe â ...")
-                    let data;
-                    try {
-                        const bin = atob(enc.enc);
-                        const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-                        data = JSON.parse(new TextDecoder('utf-8').decode(bytes));
-                    } catch (e) {
-                        // Fallback for very old browsers
-                        const raw = decodeURIComponent(escape(atob(enc.enc)));
-                        data = JSON.parse(raw);
-                    }
-                    render(data);
-                })
-                .catch(err => {
-                    el('totalBalance').textContent = 'Błąd ładowania danych';
-                    console.error(err);
-                });
-
-            function calcTotals(model) {
-                const participants = model.participants?.count || 0;
-                let income = 0;
-
-                // Carry-overs & misc incomes with explicit amount
-                (model.incomes || []).forEach(i => { income += Number(i.amount) || 0; });
-
-                // Collections (sum paid_numbers * amount_per_child)
-                (model.collections || []).forEach(col => {
-                    const paid = (col.paid_numbers || []).length;
-                    income += paid * (Number(col.amount_per_child) || 0);
-                });
-
-                // Expenses
-                let expenses = 0;
-                (model.expenses || []).forEach(e => { expenses += Math.abs(Number(e.amount) || 0); });
-
-                const total = income - expenses;
-                return { total, income, expenses, participants };
-            }
-
-            function render(model) {
-                // Header
-                el('groupName').textContent = model.meta?.group || 'Grupa';
-                el('updated').textContent = model.meta?.updated ? `aktualizacja: ${model.meta.updated}` : '';
-
-                // Totals
-                const { total, income, expenses } = calcTotals(model);
-                el('totalBalance').textContent = PLN(total);
-                el('sourcesHint').textContent = `Przychody: ${PLN(income)} • Wydatki: ${PLN(expenses)}`;
-
-                // Current collections (support many)
-                const currentWrap = el('currentList');
-                currentWrap.innerHTML = '';
-                const currents = (model.collections || []).filter(c => !!c.current);
-                if (currents.length === 0) {
-                    const div = document.createElement('div');
-                    div.className = 'muted';
-                    div.textContent = 'Brak bieżących zbiórek.';
-                    currentWrap.appendChild(div);
-                } else {
-                    currents.forEach(col => {
-                        const paid = (col.paid_numbers || []).length;
-                        const each = Number(col.amount_per_child) || 0;
-                        const collected = paid * each;
-                        const unpaid = Array.from({ length: model.participants.count }, (_, i) => i + 1)
-                            .filter(n => !(col.paid_numbers || []).includes(n));
-                        const card = document.createElement('div');
-                        card.className = 'item';
-                        card.innerHTML = `
-          <div class="row">
-            <div class="title">${col.name}</div>
-            <div class="space"></div>
-            <span class="badge">${paid}/${model.participants.count}</span>
-          </div>
-          <div class="row muted">
-            <div>Kwota: ${PLN(each)} od osoby</div>
-            <div class="space"></div>
-            <div>Zebrano: <strong>${PLN(collected)}</strong></div>
-          </div>
-        `;
-                        currentWrap.appendChild(card);
-                    });
-                }
-
-                // Previous collections
-                const prevWrap = el('prevCollections');
-                prevWrap.innerHTML = '';
-                const prev = (model.collections || []).filter(c => !c.current);
-                if (prev.length === 0) {
-                    prevWrap.innerHTML = '<div class="muted">Brak poprzednich zbiórek.</div>';
-                } else {
-                    prev.sort((a, b) => (b.start || '').localeCompare(a.start || ''));
-                    prev.forEach(col => {
-                        const paid = (col.paid_numbers || []).length;
-                        const collected = paid * (Number(col.amount_per_child) || 0);
-                        const div = document.createElement('div');
-                        div.className = 'item';
-                        div.innerHTML = `
-          <div class="row">
-            <div class="title">${col.name}</div>
-            <div class="space"></div>
-            <span class="badge">${paid}/${model.participants.count}</span>
-          </div>
-          <div class="row muted">
-            <div>Kwota: ${PLN(col.amount_per_child)} od osoby</div>
-            <div class="space"></div>
-            <div>Zebrano: <strong>${PLN(collected)}</strong></div>
-          </div>
-        `;
-                        prevWrap.appendChild(div);
-                    });
-                }
-
-                // Expenses (newest first)
-                const expWrap = el('expenses');
-                expWrap.innerHTML = '';
-                (model.expenses || [])
-                    .slice()
-                    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-                    .forEach(e => {
-                        const hasReceipt = !!e.receipt_url;
-                        const it = document.createElement('div');
-                        it.className = 'item';
-                        it.innerHTML = `
-          <div class="row">
-            <div class="title">${e.title || 'Wydatek'}</div>
-            <div class="space"></div>
-            <div class="mono">${e.date || ''}</div>
-          </div>
-          <div class="row">
-            <div class="muted">Kwota</div>
-            <div class="space"></div>
-            <div><strong>${PLN(Math.abs(Number(e.amount) || 0))}</strong></div>
-          </div>
-          <div class="muted" style="margin-top:6px">
-            ${hasReceipt ? `<a href="${e.receipt_url}" target="_blank" rel="noopener">Paragon / załącznik</a>` : (e.note ? e.note : 'Brak paragonu')}
-          </div>
-        `;
-                        expWrap.appendChild(it);
-                    });
-
-                // Payment info
-                const p = model.payment_options || {};
-                el('payInfo').innerHTML = `
-      <div class="list">
-        <div class="item"><div class="muted">BLIK</div><div class="mono">${p.blik || '—'}</div></div>
-        <div class="item"><div class="muted">Nr konta</div><div class="mono">${p.account || '—'}</div></div>
-        <div class="item"><div class="muted">Tytuł przelewu (przykład)</div><div class="mono">${p.transfer_title || '—'}</div></div>
-      </div>`;
-
-                // Checker
-                const check = () => {
-                    const val = Number(el('numInput').value);
-                    const res = el('checkResult');
-                    if (!Number.isInteger(val) || val < 1 || val > (model.participants?.count || 0)) {
-                        res.innerHTML = `<span class="badge danger">Nieprawidłowy numer. Dozwolone: 1–${model.participants?.count || 0}.</span>`;
-                        return;
-                    }
-                    let arrears = [];
-                    (model.collections || []).forEach(col => {
-                        const paid = (col.paid_numbers || []).includes(val);
-                        if (!paid) { arrears.push({ name: col.name, amount: Number(col.amount_per_child) || 0 }); }
-                    });
-                    if (arrears.length === 0) {
-                        res.innerHTML = `<span class="badge accent">✅ Numer ${val}: brak zaległości.</span>`;
-                    } else {
-                        const sum = arrears.reduce((s, a) => s + a.amount, 0);
-                        const list = arrears.map(a => `${a.name}: ${PLN(a.amount)}`).join(' • ');
-                        res.innerHTML = `<div class="badge warn">⚠️ Numer ${val}: zaległości ${PLN(sum)}</div><div class="muted" style="margin-top:6px">${list}</div>`;
-                    }
-                };
-                el('checkBtn').addEventListener('click', check);
-                el('numInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') check(); });
-            }
-        })();
-    </script>
+    <script src="app.js"></script>
 </body>
 
 </html>

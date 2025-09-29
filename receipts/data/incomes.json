@@ -1,0 +1,12 @@
+{
+    "incomes": [
+        {
+            "source": "Z książek",
+            "amount": 18.50
+        },
+        {
+            "source": "Nadwyżka z zeszłego roku",
+            "amount": 345.46
+        }
+    ]
+}
